@@ -1,0 +1,12 @@
+package iqnnfacloud;
+
+public class testMain {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		String name="12323";
+		String string = name.substring(-1);
+		System.out.println(string);
+	}
+
+}

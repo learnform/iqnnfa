@@ -1,0 +1,19 @@
+package cn.iqnnfa.service;
+
+import java.io.IOException;
+
+import cn.iqnnfa.model.DrMember;
+
+public interface IndexService {
+	DrMember findMemberByUid(Integer id);
+	
+	void addDocument() throws Exception;
+
+	void queryDocument() throws Exception;
+	
+	void insertMember(Integer id);
+
+	void executortask();
+	
+	
+}

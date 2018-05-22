@@ -1,0 +1,11 @@
+package cn.iqnnfa.dao;
+
+import java.io.Serializable;
+
+import org.apache.ibatis.annotations.Mapper;
+
+
+@Mapper
+public interface IndexDAO {
+	//public DrMember findMemberByUid(@Param("id")Integer id);
+}

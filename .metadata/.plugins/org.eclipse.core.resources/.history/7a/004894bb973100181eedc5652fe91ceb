@@ -1,0 +1,270 @@
+package com.dr.controller.index;
+
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.util.*;
+
+import javax.servlet.http.HttpServletRequest;
+
+import com.dr.common.ConfigUtil;
+import com.dr.model.member.DrMember;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.alibaba.fastjson.JSON;
+import com.dr.common.BaseResult;
+import com.dr.common.PageInfo;
+import com.dr.model.system.SysBanner;
+import com.dr.service.member.DrMemberService;
+import com.dr.service.product.DrProductInfoService;
+import com.dr.service.product.DrProductInvestService;
+import com.dr.service.system.SysArticleService;
+import com.dr.service.system.SysBannerService;
+import com.dr.service.system.impl.RedisClientTemplate;
+import sun.util.resources.LocaleNames_ga;
+
+@RequestMapping("/index")
+@Controller
+public class IndexController {
+
+    private Logger log = Logger.getLogger(this.getClass());
+    @Autowired
+    private SysArticleService sysArticleService;
+    @Autowired
+    private SysBannerService sysBannerService;
+    @Autowired
+    private DrProductInfoService drProductInfoService;
+    @Autowired
+    private DrMemberService drMemberService;
+    @Autowired
+    private DrProductInvestService drProductInvestService;
+    @Autowired
+    private RedisClientTemplate redisClientTemplate;
+
+    /**
+     * 首页产品展示
+     *
+     * @param req
+     * @return
+     */
+    @RequestMapping("/indexProduct")
+    @ResponseBody
+    public String indexProduct(HttpServletRequest req, HashMap<String, Object> params) {
+        BaseResult br = new BaseResult();
+        try {
+            HashMap<String, Object> result = new HashMap<>();
+            Integer size = params.get("size") == null ? 8 : (Integer) params.get("size");
+            result.put("map", drProductInfoService.indexProductInfo(size));
+            result.put("success", true);
+            return JSON.toJSONString(result);
+        } catch (Exception e) {
+            log.error("获取首页产品信息失败", e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+            br.setErrorMsg(e.getMessage());
+        }
+        return JSON.toJSONString(br);
+    }
+
+    /**
+     * 首页banner
+     *
+     * @return
+     */
+    @RequestMapping("/banner")
+    @ResponseBody
+    public String indexBanner(HttpServletRequest req,@RequestBody Map<String, Object> param) {
+        BaseResult br = new BaseResult();
+        try {
+        	Integer code = (Integer) param.get("code");
+          //  Map<String, Object> map = new HashMap<String, Object>();
+        	param.put("code", code);//首页banner
+            List<SysBanner> list = sysBannerService.indexBanner(param);
+            param.clear();
+            param.put("banner", list);
+            br.setMap(param);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("获取首页banner失败", e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+        }
+        return JSON.toJSONString(br);
+    }
+
+    /**
+     * 首页新闻、动态
+     *
+     * @return
+     */
+    @RequestMapping("/indexArticle")
+    @ResponseBody
+    public String indexArticle(@RequestBody HashMap<String, Object> params) {
+        /*
+         *  id 1= 七彩 2 = 行业新闻 14 = 七彩公告, 如果id不传则显示全部
+         *  pageOn 当前页, 从第一页开始
+         *  pageSize 每页大小 必须大于等于 1
+         */
+
+        BaseResult br = new BaseResult();
+        try {
+            if (params.get("pageOn") == null) {
+                params.put("pageOn", 1);
+            } else if ((Integer) params.get("pageOn") <= 0) {
+                throw new RuntimeException("pageOn 必须大于 0 ");
+            }
+
+            if (params.get("pageSize") == null) {
+                params.put("pageSize", 7);
+            } else if ((Integer) params.get("pageSize") <= 0) {
+                throw new RuntimeException("pageSize 必须大于 0 ");
+            }
+
+            Map<String, Object> result = new HashMap<String, Object>();
+            Map<String, Object> map = new HashMap<String, Object>();
+
+            //七彩动态
+            if (params.get("id") == null || "1".equals(params.get("id"))) {
+                map.clear();
+                Integer size = (Integer) params.get("pageSize");
+                map.put("offset", ((Integer) params.get("pageOn") - 1) * size);
+                map.put("limit", size);
+                map.put("proId", 1);
+                Integer count = sysArticleService.getIndexArticleCount(map);
+                result.put("dynamicsListTotalCount", count);
+                result.put("dynamicsListTotalPage", count % size == 0 ? count / size : count / size + 1);
+                result.put("dynamicsList", sysArticleService.getIndexArticle(map));
+            }
+
+            //行业新闻
+            if (params.get("id") == null || "2".equals(params.get("id"))) {
+                map.clear();
+                Integer size = (Integer) params.get("pageSize");
+                map.put("offset", ((Integer) params.get("pageOn") - 1) * size);
+                map.put("limit", size);
+                map.put("proId", 2);
+                Integer count = sysArticleService.getIndexArticleCount(map);
+                result.put("newsListTotalCount", count);
+                result.put("newsListTotalPage", count % size == 0 ? count / size : count / size + 1);
+                result.put("newsList", sysArticleService.getIndexArticle(map));
+            }
+
+            //七彩公告
+            if (params.get("id") == null || "14".equals(params.get("id"))) {
+                map.clear();
+                Integer size = (Integer) params.get("pageSize");
+                map.put("offset", ((Integer) params.get("pageOn") - 1) * size);
+                map.put("limit", size);
+                map.put("proId", 14);
+                Integer count = sysArticleService.getIndexArticleCount(map);
+                result.put("noticeListTotalCount", count);
+                result.put("noticeListTotalPage", count % size == 0 ? count / size : count / size + 1);
+                result.put("noticeList", sysArticleService.getIndexArticle(map));
+            }
+
+            result.put("pageOn", params.get("pageOn"));
+            br.setMap(result);
+            br.setSuccess(true);
+        } catch (Exception ex) {
+            br.setSuccess(false);
+            br.setErrorMsg(ex.getMessage());
+        }
+        return JSON.toJSONString(br);
+    }
+
+    /**
+     * 注册人数、累计投资金额、累计收益
+     *
+     * @return regCount, investCumulative , profitCumulative
+     */
+    @RequestMapping("/regAndInvestCount")
+    @ResponseBody
+    public String regAndInvestCount() {
+        BaseResult br = new BaseResult();
+        Map<String, Object> map = new HashMap<String, Object>();
+        DecimalFormat decimalFormat = new DecimalFormat("###0.00");
+        try {
+            String regCount = redisClientTemplate.get("regCount");
+            String investCumulative = redisClientTemplate.get("investCumulative");
+            String profitCumulative = redisClientTemplate.get("profitCumulative");
+            if (!StringUtils.isNotEmpty(regCount)) {
+                map = drMemberService.selectIndexSummaryData();
+                regCount = map.get("regCount") == null
+                        ? String.valueOf(ConfigUtil.OLD_MEMBER_COUNT)
+                        : String.valueOf(Long.valueOf(String.valueOf(map.get("regCount"))) + ConfigUtil.OLD_MEMBER_COUNT);
+
+                investCumulative = map.get("investCumulative") == null
+                        ? decimalFormat.format(ConfigUtil.OLD_SYSTEM_EARN_AMOUNT_ACCUMULATED)
+                        : decimalFormat.format(Double.valueOf(String.valueOf(map.get("investCumulative"))) + ConfigUtil.OLD_SYSTEM_EARN_AMOUNT_ACCUMULATED);
+
+                profitCumulative = map.get("profitCumulative") == null
+                        ? decimalFormat.format(ConfigUtil.OLD_SYSTEM_TRANSACTION_AMOUNT_ACCUMULATED)
+                        : decimalFormat.format(Double.valueOf(String.valueOf(map.get("profitCumulative"))) + ConfigUtil.OLD_SYSTEM_TRANSACTION_AMOUNT_ACCUMULATED);
+
+                redisClientTemplate.setex("regCount", 7200, regCount);
+                redisClientTemplate.set("investCumulative", investCumulative);
+                redisClientTemplate.set("profitCumulative", profitCumulative);
+                map.clear();
+            }
+            map.put("registeredCount", regCount);
+
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(new Date(System.currentTimeMillis() - ConfigUtil.OLD_RELEASE_TIME));
+            map.put("openingYear", calendar.get(Calendar.YEAR) - 1970);
+            map.put("openingMonth", calendar.get(Calendar.MONTH) + 1);
+            map.put("openingDay", calendar.get(Calendar.DAY_OF_MONTH));
+            map.put("transactionAmountAccumulated", investCumulative);
+            map.put("earnAmountAccumulated", profitCumulative);
+            br.setMap(map);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("获取统计数据失败", e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+        }
+        return JSON.toJSONString(br);
+    }
+
+    /**
+     * 投资记录
+     *
+     * @return
+     */
+    @RequestMapping("/indexInvestLogs")
+    @ResponseBody
+    public String indexInvestLogs() {
+        BaseResult br = new BaseResult();
+        try {
+            //投资记录
+            Map<String, Object> map = new HashMap<String, Object>();
+            PageInfo pi = new PageInfo();
+            pi.setPageSize(18);
+            br = drProductInvestService.selectInvestLogByParam(map, pi);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("查询投资记录异常", e);
+            br.setSuccess(false);
+        }
+        return JSON.toJSONString(br);
+    }
+
+    @RequestMapping("/index")
+    public String index(HttpServletRequest req, Map<String, Object> model) {
+
+        return "index";
+    }
+
+    @RequestMapping("/exit")
+    @ResponseBody
+    public void exit(HttpServletRequest req) {
+        req.getSession().invalidate();
+    }
+
+}

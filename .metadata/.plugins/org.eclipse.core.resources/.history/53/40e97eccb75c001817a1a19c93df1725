@@ -1,0 +1,18 @@
+package cn.iqnnfa;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.stereotype.Controller;
+
+import cn.iqnnfa.model.MessageModel;
+import cn.iqnnfa.model.MessageResponse;
+
+@Controller
+public class MessageSocketController {
+
+	@MessageMapping("/welcome")
+	@SendTo("/topic/getResponse")
+	public MessageResponse say(MessageModel messageModel){
+		
+		
+	}
+}

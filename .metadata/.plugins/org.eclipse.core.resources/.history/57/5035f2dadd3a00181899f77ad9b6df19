@@ -1,0 +1,45 @@
+package com.dr.controller.task;
+
+import com.dr.model.member.DrChannelReward;
+import com.dr.service.cpa.DrChannelRewardPhonedataService;
+import com.thirdparty.wps.WpsApi;
+import org.apache.log4j.Logger;
+import org.apache.log4j.spi.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.HashMap;
+import java.util.List;
+/**
+ * 
+ * ClassName: AutoPubPaymengNotice
+ * Function: TODO 自动发送还款公告任务
+ * date: 2018年4月8日 上午11:30:37
+ * 
+ * @author fanlongbiao 
+ * @version  
+ * @since JDK 1.7
+ */
+public class AutoPubPaymentNoticeTask {
+	
+	private final static Logger log = Logger.getLogger(AutoPubPaymentNoticeTask.class);
+	
+	public void autoPubPaymentNotice(){
+		
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

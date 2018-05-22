@@ -1,0 +1,605 @@
+package com.dr.service.pay.fuiou;
+
+import com.dr.common.*;
+import com.dr.common.exception.HttpStatesException;
+import com.dr.common.exception.JrBizException;
+import com.dr.model.common.MessageCodeBean;
+import com.dr.model.member.DrMemberBank;
+import com.dr.model.member.DrMemberBaseInfo;
+import com.dr.model.member.DrMemberCrush;
+import com.dr.model.pay.ApplyWithdrawCommonResBean;
+import com.dr.model.pay.BindcardCommonResBean;
+import com.dr.model.pay.fuiou.*;
+import com.dr.model.pay.fuiou.enums.FuiouBankEnum;
+import com.dr.model.pay.fuiou.enums.SyncOrderEnum;
+import com.dr.service.member.DrMemberBaseInfoService;
+import com.dr.service.member.DrMemberCrushService;
+import com.fuiou.mpay.encrypt.DESCoderFUIOU;
+import com.fuiou.util.MD5;
+import com.fuioupay.vo.SMSRequest;
+import com.fuioupay.vo.SMSResponse;
+import org.apache.commons.httpclient.NameValuePair;
+import org.apache.commons.httpclient.util.DateUtil;
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.HttpStatus;
+import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.conn.HttpHostConnectException;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+
+@Service
+public class FuiouServiceImpl implements IFuiouPayService {
+
+    private Logger log = Logger.getLogger(this.getClass());
+
+
+    public final static String XML_HEADER = "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>";
+
+    @Autowired
+    private DrMemberBaseInfoService memberBaseInfoService;
+    @Autowired
+    private DrMemberCrushService memberCrushService;
+
+    @Value("${fuiou.bindcard.version}")
+    private String bindcardVersion;
+    @Value("${fuiou.bindcard.merchant.code}")
+    private String bindcardMerchantCode;
+    @Value("${fuiou.bindcard.merchant.secret}")
+    private String bindcardMerchantSecret;
+    @Value("${fuiou.bindcard.api}")
+    private String bindcardApiAddress;
+
+    @Value("${fuiou.merchant.code}")
+    private String merchantCode;
+    @Value("${fuiou.merchant.secret}")
+    private String merchantSecret;
+
+
+    @Value("${fuiou.dsf.version}")
+    private String dsfVersion;
+    @Value("${fuiou.dsf.merchant.code}")
+    private String dsfMerchantCode;
+    @Value("${fuiou.dsf.merchant.secret}")
+    private String dsfMerchantSecret;
+    @Value("${fuiou.withdraw.api}")
+    private String withdrawApiAddress;
+
+    @Value("${fuiou.recharge.version}")
+    private String rechargeVersion;
+    @Value("${fuiou.recharge.callback}")
+    private String backURL;
+    @Value("${fuiou.sendSms.url}")
+    private String sendURL;
+    //    @Value("${fuiou.reSendSms.url}")
+//    private String reSendURL;
+    @Value("${fuiou.key}")
+    private String key;
+    @Value("${fuiou.recharge.code}")
+    private String rechargeCode;
+
+    /**
+     * 绑定银行卡接口
+     *
+     * @param bankcardNum
+     * @param phoneNum
+     * @param realName
+     * @param idCardNum
+     * @param userId
+     */
+    @Override
+    public BindcardCommonResBean doBindBankcard(String bankcardNum, String phoneNum, String realName, String idCardNum, int userId) {
+
+        String orderId = Utils.createOrderNo(6, userId, "BK");
+
+        BindcardRequestBean requestBean = new BindcardRequestBean();
+        requestBean.setVer(bindcardVersion);
+        requestBean.setMchntCd(bindcardMerchantCode);
+        requestBean.setOSsn(orderId);
+        requestBean.setOno(bankcardNum);
+        requestBean.setOnm(realName);
+        requestBean.setOCerTp("0");// 默认为0  0.身份证 1.护照 2.军官证 3.士兵证 4.回乡证 6.户口本 7.其它
+        requestBean.setOCerNo(idCardNum);
+        requestBean.setMno(phoneNum);
+
+        /*
+        MchntCd + "|" + Ver + "|" + OSsn  + "|" + Ono + "|" + OCerTp + "|" + OCerNo + "|" +mchnt_key 做 md5
+        摘要 其中 mchnt_key 为 32 位的商户密钥
+        */
+        String sign = MD5.MD5Encode(bindcardMerchantCode + "|" + bindcardVersion + "|" + orderId + "|" + bankcardNum + "|0|" + idCardNum + "|" + bindcardMerchantSecret);
+        requestBean.setSign(sign);
+
+        String xml = XmlObjParseUtils.toXml(requestBean);
+
+        NameValuePair[] params = {
+                new NameValuePair("FM", xml)
+        };
+
+        BindcardCommonResBean commonResBean = new BindcardCommonResBean();
+        commonResBean.setOrderId(orderId);
+
+        try {
+            log.info("富有绑卡验证接口" + bindcardApiAddress + "  参数：" + xml);
+
+            Map<String, Object> responseResult = HttpRequestUtils.postRequest(bindcardApiAddress, params); //请求接口
+
+            log.info("富有绑卡验证接口返回状态码：" + responseResult.get("statusCode")
+                    + "  请求返回内容：" + responseResult.get("response_body"));
+
+
+            if (HttpStatus.SC_OK == Integer.parseInt(responseResult.get("statusCode").toString())) {
+                BindcardResponseBean responseBean = XmlObjParseUtils.toBean(responseResult.get("response_body").toString(), BindcardResponseBean.class);
+
+                //Rcd+"|"+ OSsn +"|"+ CardNo +"|"+MchntCd +"|"+ Ver+"|"+mchnt_key 做 md5 摘要其中 mchnt_key 为 32位的商户密钥
+                String md5 = MD5.MD5Encode(responseBean.getRcd() + "|" + responseBean.getOSsn() + "|" + responseBean.getCardNo() + "|" +
+                        responseBean.getMchntCd() + "|" + bindcardVersion + "|" + bindcardMerchantSecret);
+
+                //验证返回的签名
+                if (responseBean.getSign().equals(md5)) {
+                    commonResBean.setResCode(responseBean.getRcd());
+                    commonResBean.setResDesc(responseBean.getRDesc());
+                    commonResBean.setBankCode(responseBean.getInsCd());
+
+                    if (responseBean.getRcd().equals("0000")) {//验证成功
+                        //根据机构号前6位判断属于哪家银行
+                        if (!StringUtils.isEmpty(responseBean.getInsCd()) && responseBean.getInsCd().length() > 6) {
+                            commonResBean.setBankName(FuiouBankEnum.fromString(responseBean.getInsCd().trim().substring(0, 6)).getBankName());
+                        } else {
+                            log.error("富有绑卡返回银行名称不在预定的银行中，银行机构号：" + responseBean.getInsCd() + "  银行名称：" + responseBean.getCnm());
+                            throw new JrBizException(MessageCodeBean.PayErrorCode.NotExisteInFuiouSupportBank);
+                        }
+                    }
+                }
+            }
+        } catch (HttpStatesException e) {
+            log.error("富有绑卡接口请求返回码错误：" + e.getMessage());
+            commonResBean.setResDesc("接口请求返回码错误");
+        } catch (JrBizException e) {
+            log.error("富有绑卡返回银行名称不在预定的银行中：" + e.getMessage());
+            commonResBean.setResDesc("富有绑卡返回银行名称不在预定的银行中");
+        } catch (Exception e) {
+            log.error("富有绑卡验证调用出现异常：" + e.getMessage());
+            commonResBean.setResDesc("调用接口出现异常");
+        }
+
+        return commonResBean;
+    }
+
+
+    /**
+     * 客户充值前下单并发送手机验证码接口
+     *
+     * @param userIp
+     * @param memberCrush
+     * @param memberBank
+     */
+    @Override
+    public BaseResult createRechargeOrderAndSendPhoneCode(String userIp, DrMemberCrush memberCrush, DrMemberBank memberBank, int type) throws Exception {
+        BaseResult br = new BaseResult();
+        Map<String, Object> map = new HashMap<String, Object>();
+
+        String sendURL = "";
+        DrMemberBaseInfo memberInfo = memberBaseInfoService.queryMemberBaseInfoByUid(memberCrush.getUid());
+
+        SMSRequest data = new SMSRequest();
+        data.setVERSION(this.rechargeVersion);
+        data.setUSERIP(userIp);
+        data.setMCHNTCD(this.rechargeCode);
+        data.setTYPE("03");
+        data.setUSERID(memberCrush.getUid());
+        //金额单位是分
+        data.setAMT(String.valueOf(memberCrush.getAmount().multiply(new BigDecimal(100)).intValue()));
+        data.setBANKCARD(memberBank.getBankNum());
+        data.setNAME(memberInfo.getRealName());
+        data.setIDTYPE(0);
+        data.setIDNO(memberInfo.getIdCards());
+        data.setMOBILE(memberBank.getMobilePhone());
+        data.setBACKURL(this.backURL);
+        data.setSIGNTP("md5");
+
+        StringBuffer toMD5 = new StringBuffer();
+        toMD5.append(data.getTYPE())
+                .append("|")
+                .append(data.getVERSION())
+                .append("|")
+                .append(data.getMCHNTCD())
+                .append("|");
+
+        if (type == 1) {
+            data.setMCHNTORDERID(memberCrush.getPayNum());
+            toMD5.append(data.getMCHNTORDERID())
+                    .append("|");
+            sendURL = this.sendURL;
+        }
+//        else if (type == 2){
+//            data.setORDERID(memberCrush.getFuiouOrderId());
+//            toMD5.append(data.getORDERID())
+//                    .append("|");
+//            sendURL=this.reSendURL;
+//        }
+        toMD5.append(data.getUSERID())
+                .append("|")
+                .append(data.getAMT())
+                .append("|")
+                .append(data.getBANKCARD())
+                .append("|")
+                .append(data.getBACKURL())
+                .append("|")
+                .append(data.getNAME())
+                .append("|").
+                append(data.getIDNO())
+                .append("|")
+                .append(data.getIDTYPE())
+                .append("|")
+                .append(data.getMOBILE())
+                .append("|")
+                .append(data.getUSERIP())
+                .append("|")
+                .append(this.key);
+
+        String md5 = SecurityUtils.md5Encode(toMD5.toString(), "UTF-8").toUpperCase();
+        data.setSIGN(md5);
+        String xml = XmlObjParseUtils.toXml(data);
+        xml = xml.replace("com.fuioupay.vo.SMSRequest", "REQUEST");
+        map.clear();
+        String resultString = "";
+        try {
+            map.put("APIFMS", DESCoderFUIOU.desEncrypt(xml, DESCoderFUIOU.getKeyLength8(this.key)));
+            map.put("MCHNTCD", data.getMCHNTCD());
+
+            log.info("获取短信验证码时,发送给富友系统的商户号:" + data.getMCHNTCD() + "; xml内容:" + xml);
+            resultString = HttpRequestUtils.doPost(sendURL, map);
+            if (StringUtils.isEmpty(resultString)) {
+                log.error("接口" + sendURL + "响应异常！");
+                br.setSuccess(false);
+                return br;
+            }
+
+            resultString = DESCoderFUIOU.desDecrypt(resultString, DESCoderFUIOU.getKeyLength8(this.key));
+            log.info("获取短信验证码时,富友系统的响应数据为:" + resultString);
+            resultString = resultString.replace("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?><RESPONSE>", "<com.fuioupay.vo.SMSResponse>");
+            resultString = resultString.replace("</RESPONSE>", "</com.fuioupay.vo.SMSResponse>");
+            map.clear();
+        } catch (HttpStatesException e) {
+            log.error("服务异常:" + sendURL, e);
+        } catch (HttpHostConnectException e2) {
+            log.error("服务地址不可用:" + sendURL, e2);
+        } catch (ConnectTimeoutException e3) {
+            log.error("被调用服务响应超时:" + sendURL, e3);
+        }
+        SMSResponse response = XmlObjParseUtils.toBean(resultString, SMSResponse.class);
+
+        //验签
+        toMD5.setLength(0);
+        toMD5.append(response.getTYPE())
+                .append("|")
+                .append(response.getVERSION())
+                .append("|")
+                .append(response.getRESPONSECODE())
+                .append("|")
+                .append(response.getMCHNTCD())
+                .append("|")
+                .append(response.getMCHNTORDERID())
+                .append("|")
+                .append(response.getUSERID())
+                .append("|")
+                .append(response.getORDERID())
+                .append("|")
+                .append(response.getAMT())
+                .append("|")
+                .append(this.key);
+
+
+        if (!SecurityUtils.md5Encode(toMD5.toString(), "UTF-8").toUpperCase().equals(response.getSIGN().toUpperCase())) {
+            log.error("接口" + sendURL + "签名验证异常！");
+            br.setSuccess(false);
+            return br;
+        }
+
+//        memberCrush.setRemark(response.getRESPONSEMSG());
+        memberCrush.setFuiouOrderId(response.getORDERID());
+        memberCrush.setFuiouSignPay(response.getSIGNPAY());
+        memberCrushService.updateMemberCrushById(memberCrush);
+
+        if (response.getRESPONSECODE().equals("0000")) {
+            map.put("drMemberCrush", memberCrush);
+            br.setSuccess(true);
+            br.setMap(map);
+            return br;
+        } else {
+            br.setSuccess(false);
+            return br;
+        }
+    }
+
+    /**
+     * 客户充值时，重发验证码接口
+     * 需在调用 上面接口的 3 分钟后方能调用，同一富友订单号，此接口只允许最多调用 2 次
+     */
+//    @Override
+//    public void doReSendPhoneCodeRecharge() {
+//
+//    }
+
+    /**
+     * 客户充值接口，提到到第三方支付公司调用支付接口
+     */
+    @Override
+    public void doRecharge() {
+
+    }
+
+    /**
+     * 充值结果查询接口，通过富友订单号
+     */
+    @Override
+    public void doSyncRechargeResultWithFyId() {
+
+    }
+
+    /**
+     * 提现申请接口
+     *
+     * @param orderNo      订单编号
+     * @param bankName     银行名称
+     * @param cityCode     城市代码
+     * @param bankCardNum  银行卡号
+     * @param amount       提现金额 单位元
+     * @param userRealName 用户真实姓名
+     */
+    @Override
+    public ApplyWithdrawCommonResBean applyWithdraw(String orderNo, String bankName, String cityCode, String bankCardNum, BigDecimal amount, String userRealName) {
+        String methodName = "payforreq";
+
+
+        ApplyWithdrawCommonResBean applyWithdrawCommonResBean = new ApplyWithdrawCommonResBean();
+
+        WithdrawRequestBean requestBean = new WithdrawRequestBean();
+        requestBean.setVer(dsfVersion);
+        requestBean.setMerdt(DateUtil.formatDate(new Date(), "yyyyMMdd"));
+        requestBean.setOrderno(orderNo);
+
+        FuiouBankEnum bankEnum = FuiouBankEnum.fromString(bankName);
+
+        if (bankEnum == null || !bankEnum.isSupport()) {
+            applyWithdrawCommonResBean.setSuccess(false);
+            applyWithdrawCommonResBean.setRemark("此银行不支持提现");
+            return applyWithdrawCommonResBean;
+        }
+
+        requestBean.setBankno(bankEnum.toString());//银行总行代码
+
+
+        if(StringUtils.isEmpty(cityCode))
+            requestBean.setCityno("1000");//有15家常见银行，默认北京市1000 ，其它银行则需要真实的城市代码
+        else
+            requestBean.setCityno(cityCode);
+
+
+        requestBean.setAccntno(bankCardNum);//账号
+        requestBean.setAccntnm(userRealName);//账户名称
+        requestBean.setAmt(amount.multiply(BigDecimalUtils.parse(100)).setScale(0, RoundingMode.DOWN).toString());//单位：分
+
+        String xml = XML_HEADER + XmlObjParseUtils.toXml(requestBean);
+
+        String response_body = null;
+        try {
+            response_body = sendRequet(methodName, xml);
+        } catch (Exception e) {
+            applyWithdrawCommonResBean.setSuccess(false);
+            applyWithdrawCommonResBean.setRemark("网络出现问题");
+            return applyWithdrawCommonResBean;
+        }
+
+
+        if (StringUtils.isEmpty(response_body)) {
+            applyWithdrawCommonResBean.setSuccess(false);
+            applyWithdrawCommonResBean.setRemark("网络出现问题");
+        } else {
+            WithdrawResultBean withdrawResult = XmlObjParseUtils.toBean(response_body, WithdrawResultBean.class);
+            if ("000000".equals(withdrawResult.getRet())) {//成功
+                applyWithdrawCommonResBean.setSuccess(true);
+            } else {
+                applyWithdrawCommonResBean.setSuccess(false);
+                applyWithdrawCommonResBean.setRemark(withdrawResult.getMemo());
+            }
+        }
+
+        return applyWithdrawCommonResBean;
+    }
+
+
+    /**
+     * 提现结果查询接口
+     * 查询的频率限制：生产查询间隔为 3min、测试环境查询间隔为 30S;
+     * 批量查询，可以不填请求流水，查询时间段的所有交易。  日期段不能超过 15 天
+     * 也可以一次查询多个流水，流水之间用”,”英文逗号分隔，最多 50 个。
+     *
+     * @param orders      流水之间用”,”英文逗号分隔，最多 50 个
+     * @param startDt
+     * @param endDt
+     * @param orderStatus
+     * @return
+     */
+    public List<SyncOrderBean> doSyncWithdrawOrder(String orders, String startDt, String endDt, String orderStatus) throws Exception {
+        return doSyncOrder(orders, startDt, endDt, orderStatus, SyncOrderEnum.WITHDRAW);
+    }
+
+
+    /**
+     * 提现失败后退票结果查询接口
+     * 查询的频率限制：生产查询间隔为 3min、测试环境查询间隔为 30S;
+     * 批量查询，可以不填请求流水，查询时间段的所有交易。  日期段不能超过 15 天
+     * 也可以一次查询多个流水，流水之间用”,”英文逗号分隔，最多 50 个。
+     *
+     * @param orders      流水之间用”,”英文逗号分隔，最多 50 个
+     * @param startDt
+     * @param endDt
+     * @param orderStatus
+     * @return
+     */
+    public List<SyncOrderBean> doSyncSendbackWithdrawOrder(String orders, String startDt, String endDt, String orderStatus) throws Exception {
+        return doSyncOrder(orders, startDt, endDt, orderStatus, SyncOrderEnum.SENDBACK);
+    }
+
+
+    /**
+     * 提现失败退票回调接口
+     *
+     * @param orderNo         商户订单
+     * @param orderCreateTime 原请求日期
+     * @param fyOrderNo       富友流水
+     * @param tpTime          退票日期
+     * @param tpOrderNo       退票流水
+     * @param bankCardNo      账号
+     * @param realName        账户名称
+     * @param amount          退票金额
+     * @param state           状态
+     * @param mac
+     */
+    @Override
+    public boolean doCallBackWithdrawFailed(String orderNo, String orderCreateTime, String fyOrderNo, String tpTime, String tpOrderNo, String bankCardNo, String realName, String amount, String state, String mac) {
+
+        /*
+          商户号|富友分配给商户的密钥|商户请求流水|原请求日期|账号|退票金额，用竖线拼接后用 MD5 散列后的16 进制文本
+          Md5(merid+”|”+key+”|”+orderno+”|”+merdt+”|”+accntno+”|”+amt)
+        */
+        String md5 = SecurityUtils.md5Encode(dsfMerchantCode + "|" + dsfMerchantSecret + "|" + orderNo + "|" + orderCreateTime + "|" + bankCardNo + "|" + amount, "UTF-8");
+        if (md5.equals(mac)) {//签名成功
+
+
+            if ("1".equals(state)) {
+                return true;
+            }
+
+        }
+        return false;
+    }
+
+
+    /**
+     * 提现成功实时回调接口
+     *
+     * @param orderNo         商户订单
+     * @param orderCreateTime 原请求日期
+     * @param fyOrderNo       富友流水
+     * @param bankCardNo      账号
+     * @param realName        账户名称
+     * @param amount          退票金额
+     * @param state           状态 1为付款成功
+     * @param mac
+     */
+    public boolean doCallBackWithdrawSuccess(String orderNo, String orderCreateTime, String fyOrderNo, String bankCardNo, String realName, String amount, String state, String mac) {
+
+        /*商户号|富友分配给商户的密钥|商户请求流水|原请求日期|账号|退票金额，用竖线拼接后用MD5散列后的16进制文本
+        Md5(merid+”|”+pwd+”|”+orderno+”|”+merdt+”|”+accntno+”|”amt”)*/
+        String md5 = SecurityUtils.md5Encode(dsfMerchantCode + "|" + dsfMerchantSecret + "|" + orderNo + "|" + orderCreateTime + "|" + bankCardNo + "|" + amount, "UTF-8");
+        if (md5.equals(mac)) {//签名成功
+
+            if ("1".equals(state)) {
+                return true;
+            }
+
+        }
+        return false;
+
+    }
+
+
+    /**
+     * 通过查询代收付订单状态
+     *
+     * @param orders        订单流水号  多个流水用”,”英文逗号分隔，最多 50 个
+     * @param startDt
+     * @param endDt
+     * @param orderStatus
+     * @param syncOrderEnum
+     * @return
+     */
+    private List<SyncOrderBean> doSyncOrder(String orders, String startDt, String endDt, String orderStatus, SyncOrderEnum syncOrderEnum) throws Exception {
+
+        String methodName = "qrytransreq";
+
+        SyncOrderParamBean syncOrderParam = new SyncOrderParamBean();
+
+        syncOrderParam.setVer(dsfVersion);
+        syncOrderParam.setBusicd(syncOrderEnum.toString());
+
+        if (!StringUtils.isEmpty(orderStatus))
+            syncOrderParam.setTransst(orderStatus);
+
+        //订单流水号  多个流水用”,”英文逗号分隔，最多 50 个
+        if (!StringUtils.isEmpty(orders))
+            syncOrderParam.setOrderno(orders);
+
+        syncOrderParam.setStartdt(startDt);
+        syncOrderParam.setEnddt(endDt);
+
+        String xml = XML_HEADER + XmlObjParseUtils.toXml(syncOrderParam);
+
+        String response_body = sendRequet(methodName, xml); //请求接口
+
+        if (StringUtils.isEmpty(response_body)) {
+            return null;
+        }
+
+        SyncOrderResultBean resultBean = XmlObjParseUtils.toBean(response_body, SyncOrderResultBean.class);
+        if ("000000".equals(resultBean.getRet())) {//成功
+            return resultBean.getOrders();
+        }
+
+        return null;
+    }
+
+
+    /**
+     * 发送富友代收付接口请求
+     *
+     * @param methodName
+     * @param xml
+     * @return
+     */
+    private String sendRequet(String methodName, String xml) throws Exception {
+
+        /*商户号|富友分配给商户的秘钥|请求类型|业务参数 XML，用竖线拼接后用 MD5 散列后的16 进制文本
+        Md5(merid+”|”+key+”|”+reqtype+”|”+xml)*/
+        String md5 = SecurityUtils.md5Encode(dsfMerchantCode + "|" + dsfMerchantSecret + "|" + methodName + "|" + xml, "UTF-8").toUpperCase();
+
+        NameValuePair[] params = {
+                new NameValuePair("merid", dsfMerchantCode),
+                new NameValuePair("reqtype", methodName),
+                new NameValuePair("xml", xml),
+                new NameValuePair("mac", md5)
+        };
+
+        try {
+            log.info("富有代收付接口 " + withdrawApiAddress + "  method:" + methodName + "请求参数信息xml:" + xml);
+
+            Map<String, Object> responseResult = HttpRequestUtils.postRequest(withdrawApiAddress, params);
+
+            log.info("富有代收付接口 method:" + methodName + "返回状态码：" + responseResult.get("statusCode")
+                    + " 请求返回内容：" + responseResult.get("response_body"));
+
+            if (HttpStatus.SC_OK == Integer.parseInt(responseResult.get("statusCode").toString())) {
+                return responseResult.get("response_body").toString();
+            }
+        } catch (HttpStatesException ex) {
+            log.error("富有代收付接口 " + withdrawApiAddress + "  method:" + methodName + "请求参数信息xml:" + xml + " 请求接口返回状态不对，消息：" + ex.getMessage());
+            throw ex;
+        } catch (Exception e) {
+            log.error("富有代收付接口 " + withdrawApiAddress + "  method:" + methodName + "请求参数信息xml:" + xml + " 请求接口异常，消息：" + e.getMessage());
+            throw e;
+        }
+        return "";
+    }
+
+}

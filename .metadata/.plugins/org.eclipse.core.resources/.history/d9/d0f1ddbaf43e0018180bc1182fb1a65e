@@ -1,0 +1,6 @@
+@Configuration public class AppConfig { @Bean（initMethod =“init”） public Foo foo （）{
+         return new Foo（）; 
+    } @Bean（destroyMethod =“cleanup”） public bar bar（）{
+         return new Bar（）; 
+    } 
+}

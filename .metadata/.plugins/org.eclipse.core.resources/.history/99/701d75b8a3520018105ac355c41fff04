@@ -1,0 +1,61 @@
+package cn.iqnnfa.service.impl;
+
+import org.apache.solr.client.solrj.SolrServer;
+import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.impl.HttpSolrServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanNameAware;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import cn.iqnnfa.dao.IndexDAO;
+import cn.iqnnfa.model.DrMember;
+import cn.iqnnfa.service.IndexService;
+
+@Service
+public class IndexServiceImpl implements IndexService,BeanNameAware{
+	
+	private String beanName = null;
+	@Autowired
+	private IndexDAO indexDAO;
+	@Override
+	@Transactional
+	@Cacheable("rMember")
+	public DrMember findMemberByUid(Integer id) {
+		// TODO Auto-generated method stub
+		final Logger logger = LoggerFactory.getLogger(IndexServiceImpl.class);
+
+		
+	    		 try {
+					DrMember drMember = indexDAO.findMemberByUid(id);
+					return drMember;
+				} catch (Exception e) {
+					logger.equals("插入失败");
+				}
+	    		 return null;
+	}
+	@Override
+	public void setBeanName(String name) {
+		// TODO Auto-generated method stub
+		this.beanName = name;
+	}
+	 
+	public void addDocument(){
+		HttpSolrServer solrServer = new HttpSolrServer("http://192.168.56.102:8080/solr");
+		 //[2]创建文档doc
+        SolrInputDocument doc = new SolrInputDocument();
+        //[3]添加内容
+        String str = UUID.randomUUID().toString();
+        System.out.println(str);
+        doc.addField("id", str);
+        doc.addField("name", "Amazon Kindle Paperwhite");
+        //[4]添加到client
+        UpdateResponse updateResponse = client.add(doc);
+        System.out.println(updateResponse.getElapsedTime());
+        //[5] 索引文档必须commit
+        client.commit();
+	}
+}

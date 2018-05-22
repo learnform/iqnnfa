@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dr.dao.activity.BusinessNianHuoRewardFlowMapper">
+  <resultMap id="BaseResultMap" type="com.dr.model.activity.BusinessNianHuoRewardFlow">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="uid" jdbcType="VARCHAR" property="uid" />
+    <result column="invest_id" jdbcType="VARCHAR" property="investId" />
+    <result column="profitl_amount" jdbcType="DECIMAL" property="profitlAmount" />
+    <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
+    <result column="text1" jdbcType="VARCHAR" property="text1" />
+    <result column="text2" jdbcType="VARCHAR" property="text2" />
+    <result column="text3" jdbcType="VARCHAR" property="text3" />
+  </resultMap>
+  
+</mapper>

@@ -1,0 +1,39 @@
+package com.dr.dao.member;
+
+import com.dr.model.member.DrMemberCrush;
+
+import java.sql.SQLException;
+
+public interface DrMemberCrushDAO {
+    
+	/**
+	 * 添加充值记录
+	 * @param DrMemberCrush
+	 * @return void
+	 * @throws SQLException
+	 */
+    public void insertDrMemberCrush(DrMemberCrush drMemberCrush) throws SQLException; 
+    
+	/**
+	 * 根据商户唯一订单号查询
+	 * @param payNum
+	 * @return DrMemberCrush
+	 */
+    public DrMemberCrush getDrMemberCrushByPayNum(String payNum); 
+    
+	/**
+	 * 根据商户唯一订单号查状态
+	 * @param payNum
+	 * @return DrMemberCrush
+	 */
+    public DrMemberCrush getDrMemberCrushByStatus(String payNum); 
+    
+	/**
+	 * 根据商户订单号修改
+	 * @param DrMemberCrush
+	 * @return void
+	 * @throws SQLException
+	 */
+    public void updateMemberCrushById(DrMemberCrush drMemberCrush) throws SQLException;
+
+}

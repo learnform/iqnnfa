@@ -1,0 +1,460 @@
+package com.dr.controller.activity;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.alibaba.fastjson.JSON;
+import com.dr.common.BaseResult;
+import com.dr.common.ConfigUtil;
+import com.dr.common.PageInfo;
+import com.dr.common.Utils;
+import com.dr.model.activity.DrActivity;
+import com.dr.model.activity.DrCouponsIssuedRules;
+import com.dr.model.activity.DrMemberFavourable;
+import com.dr.model.member.DrMember;
+import com.dr.model.product.DrProductInfo;
+import com.dr.service.activity.BusinessReceiveRecordService;
+import com.dr.service.activity.DrActivityParameterService;
+import com.dr.service.activity.DrActivityService;
+import com.dr.service.activity.DrMemberFavourableService;
+import com.dr.service.member.DrMemberFundsService;
+import com.dr.service.member.DrMemberLotteryLogService;
+import com.dr.service.member.DrMemberRecommendedService;
+import com.dr.service.member.DrMemberService;
+import com.dr.service.product.DrProductInfoService;
+import com.dr.service.product.DrProductInvestService;
+import com.dr.service.system.impl.RedisClientTemplate;
+
+@Controller
+@RequestMapping("/activity")
+public class ActivityController {
+	private Logger log = Logger.getLogger(this.getClass());
+
+	@Autowired
+	private DrMemberFavourableService drMemberFavourableService;
+	@Autowired
+	private DrProductInfoService drProductInfoService;
+	@Autowired
+	private DrMemberRecommendedService drMemberRecommendedService;
+	@Autowired
+	private DrProductInvestService drProductInvestService;
+	@Autowired
+	private RedisClientTemplate redisClientTemplate;
+	@Autowired
+	private DrMemberLotteryLogService drMemberLotteryLogService;
+	@Autowired
+	private DrMemberService drMemberService;
+	@Autowired
+	private DrActivityParameterService drActivityParameterService;
+	@Autowired
+	private DrActivityService drActivityService;
+	@Autowired
+	private BusinessReceiveRecordService businessReceiveRecordService;
+
+	@RequestMapping(value = "/index", method = RequestMethod.POST)
+	@ResponseBody
+	public String index(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		DrMember m = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+		try {
+			param.put("uid", m.getUid());
+			List<DrMemberFavourable> list = drMemberFavourableService.selectByParam(param);
+			param.clear();
+			param.put("list", list);
+			br.setMap(param);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			log.error("我的优惠券查询失败", e);
+			br.setErrorCode("9999");
+			br.setSuccess(false);
+		}
+		return JSON.toJSONString(br);
+	}
+
+	@RequestMapping(value = "/usable", method = RequestMethod.POST)
+	@ResponseBody
+	public String usable(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		DrMember m = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+
+		Map<String, Object> map = new HashMap<String, Object>();
+		map.put("uid", m.getUid());
+		map.put("barring", new Integer[] { 1 });
+		Integer investCount = drProductInvestService.selectInvestCountByMap(map);
+
+		try {
+			Utils.verification(param.get("pid"), "pid 不能能空");
+			DrProductInfo info = drProductInfoService
+					.selectProductByPrimaryKey(Integer.parseInt(param.get("pid").toString()));
+			param.put("status", 0);
+			param.put("uid", m.getUid());
+			param.put("deadline", info.getDeadline());
+			List<DrMemberFavourable> list = null;
+			if (info.getType() == 1) {// 新手标
+				param.put("type", new Integer[] { 3 });
+			} else {
+				Integer[] types = new Integer[3];
+				if (info.getIsCash() == 1) {
+					types[1] = 1;
+				}
+				if (info.getIsInterest() == 1) {
+					types[0] = 2;
+				}
+				if (info.getIsDouble() == 1) {
+					types[2] = 4;
+				}
+				param.put("type", types);
+
+				// if(info.getIsInterest() == 1 && info.getIsCash() == 1 &&
+				// info.getIsDouble() == 1){//加息券、返现、翻倍券
+				// param.put("type", new Integer[]{1, 2, 4});
+				// }else if(info.getIsCash() == 1){//返现红包
+				// param.put("type", new Integer[]{1});
+				// }else if(info.getIsInterest() == 1){//加息券
+				// param.put("type", new Integer[]{2});
+				// }else if(info.getIsDouble() == 1){//翻倍券
+				// param.put("type", new Integer[]{4});
+				// }
+			}
+			if (info.getIsCash() == 0 && info.getIsInterest() == 0 && info.getIsDouble() == 0 && info.getType() != 1) {
+				list = new ArrayList<DrMemberFavourable>();
+			} else {
+				list = drMemberFavourableService.selectByParam(param);
+			}
+			param.clear();
+			param.put("list", list);
+			param.put("investCount", investCount);
+			br.setMap(param);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			log.error("我的优惠券查询失败", e);
+			br.setErrorCode("9999");
+			br.setSuccess(false);
+			br.setErrorMsg(e.getMessage());
+		}
+		return JSON.toJSONString(br);
+
+	}
+
+	/**
+	 * 根据用户UID获取用户推荐好友列表
+	 */
+	@RequestMapping(value = "/myRecommend", method = RequestMethod.POST)
+	@ResponseBody
+	public String myFrieds(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		PageInfo pi = new PageInfo();
+		Utils.getObjectFromMap(pi, param);
+		BigDecimal rewards = BigDecimal.ZERO;
+		DrMember m = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+		Map<String, Object> map = new HashMap<String, Object>();
+		try {
+			map.put("referrerId", m.getUid());
+			// map.put("other", " investTime is not null and referrerReward >
+			// 0");
+			// map.put("startDate",
+			// redisClientTemplate.getProperties("activityStartDate"));
+			// map.put("endDate",
+			// redisClientTemplate.getProperties("activityEndDate"));
+			// map.put("diffDay", 30);
+			pi = drMemberRecommendedService.getDrMemberRecommended(pi, map);
+			// rewards =
+			// drMemberFundsService.selectDrMemberFundsByUid(m.getUid()).getSpreadProfit();
+			rewards = drMemberRecommendedService.getTotalProfit(m.getUid());
+			param.clear();
+			param.put("page", pi);
+			param.put("total", drMemberRecommendedService.getMemberRecommendMemberByUid(m.getUid()));
+			param.put("rewards", rewards == null ? 0 : rewards);
+			param.put("recommCodes", m.getRecommCodes());
+			br.setMap(param);
+			br.setSuccess(true);
+
+		} catch (Exception e) {
+			log.error("我的好友查询失败", e);
+			br.setErrorCode("9999");
+			br.setSuccess(false);
+		}
+		return JSON.toJSONString(br);
+	}
+
+	/**
+	 * 根据用户UID获取用户是否参与了活动
+	 */
+	@RequestMapping(value = "/isParticipationActivity", method = RequestMethod.POST)
+	@ResponseBody
+	public String isParticipationActivity(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		try {
+			DrMember m = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+			// 获取登录ID
+			Object uid = Utils.isObjectNotEmpty(param.get("uid")) ? param.get("uid")
+					: Utils.isObjectNotEmpty(m) ? m.getUid() : null;
+			Map<String, Object> map = new HashMap<String, Object>();
+			// 获取活动详情
+			map.put("type", param.get("type"));
+			map.put("status", 1);// 生效
+			DrCouponsIssuedRules rules = drActivityParameterService.getcouponsIssuedRules(map);
+			// 判断登录用户是否已经参与活动
+			if (Utils.isObjectNotEmpty(uid)) {
+				map.clear();
+				map.put("uid", uid);
+				map.put("type", param.get("type"));// 赠送时刻 0 注册 1：投资赠送
+				map.put("statuses", new Integer[] { 1 });// 生效
+				Integer total = drMemberFavourableService.getParticipationActivityTotal(map);
+				if (total > 0) {
+					br.setFlag(true);
+				} else {
+					br.setFlag(false);
+				}
+			} else {
+				br.setFlag(false);
+			}
+			map.clear();
+			map.put("startTime", rules == null ? "" : rules.getStartTime());
+			br.setSuccess(true);
+			br.setMap(map);
+		} catch (Exception e) {
+			br.setErrorCode("9999");// 系统错误
+			e.printStackTrace();
+		}
+		return JSON.toJSONString(br);
+	}
+
+	/**
+	 * 获取投资排名数据
+	 * 
+	 * @param req
+	 * @return
+	 */
+	@RequestMapping(value = "/getInvestTopData", method = RequestMethod.POST)
+	@ResponseBody
+	public String getDwData(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		try {
+			// Integer activityId =
+			// Integer.parseInt(redisClientTemplate.getProperties("online.activity.id"));
+			// DrActivity drActivity =
+			// drActivityService.selectByPrimaryKey(activityId);
+			Map<String, Object> map = new HashMap<String, Object>();
+			map.put("startDate", "2016-11-05 00:00:00");
+			map.put("endDate", "2016-11-12 23:59:59");
+			map.put("topNum", param.get("topNum"));
+			map.put("deadline", 90);
+			List<Map<String, Object>> list = drProductInvestService.selectInvestTopGroupByUid(map);// 前十名
+			Map<String, Object> memberInvest = new HashMap<String, Object>();
+			DrMember member = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+			Object uid = Utils.isObjectNotEmpty(param.get("uid")) ? param.get("uid")
+					: Utils.isObjectNotEmpty(member) ? member.getUid() : null;
+
+			if (Utils.isObjectNotEmpty(uid)) {// 获取用户的投资额
+				map.put("uid", uid);
+				List<Map<String, Object>> mMap = drProductInvestService.selectInvestTopGroupByUid(map);
+				if (mMap.size() > 0) {
+					memberInvest = mMap.get(0);
+				}
+
+			}
+			map.clear();
+			map.put("investList", list);
+			if (Utils.isObjectNotEmpty(uid)) {// 获取用户的投资额
+				map.put("isJoin",
+						drMemberService.selectMemberIsJoinActivity(Integer.parseInt(uid.toString())).size() > 0 ? true
+								: false);
+			}
+			map.put("memberInvest", Utils.isObjectEmpty(memberInvest.get("total")) ? 0 : memberInvest.get("total"));
+			map.put("readTime", new Date());
+			br.setMap(map);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			br.setSuccess(false);
+			br.setErrorCode("9999");
+			log.error("获取端午节数据失败", e);
+		}
+		return JSON.toJSONString(br);
+
+	}
+
+	/**
+	 * 抽奖
+	 * 
+	 * @param req
+	 * @param param
+	 * @return
+	 */
+	@RequestMapping(value = "getLotteryGift", method = RequestMethod.POST)
+	@ResponseBody
+	public String getLotteryGift(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		Object uid = param.get("uid");
+		DrMember member = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+		if (Utils.isObjectNotEmpty(uid) || Utils.isObjectNotEmpty(member)) {
+			member = drMemberService
+					.selectByPrimaryKey(Utils.isObjectEmpty(uid) ? member.getUid() : Integer.parseInt(uid.toString()));
+			try {
+				// 查询用户是否有参加活动资格
+				List<DrMember> mList = drMemberService.selectMemberIsJoinActivity(member.getUid());
+				if (mList.size() > 0) {
+					redisClientTemplate.lock(member.getUid() + "");
+					br = drMemberLotteryLogService.insertLogtteryLog(member);
+				} else {
+					br.setSuccess(false);
+					br.setErrorCode("1002");
+					br.setErrorMsg("今日机会已用完，请明日再来");
+				}
+			} catch (Exception e) {
+				br.setSuccess(false);
+				br.setErrorCode("9999");
+				log.error("用户[uid=" + uid + "]抽奖失败", e);
+			}
+		} else {
+			br.setErrorCode("9998");
+			br.setSuccess(false);
+		}
+		return JSON.toJSONString(br);
+
+	}
+
+	/**
+	 * 获取年化投资额
+	 * 
+	 * @param req
+	 * @return
+	 */
+	@RequestMapping(value = "/getAnnualInvestSumByParam", method = RequestMethod.POST)
+	@ResponseBody
+	public String getAnnualInvestSumByParam(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		try {
+			Map<String, Object> resultMap = new HashMap<String, Object>();
+
+			DrMember member = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+			Object uid = Utils.isObjectNotEmpty(param.get("uid")) ? param.get("uid")
+					: Utils.isObjectNotEmpty(member) ? member.getUid() : null;
+
+			if (Utils.isObjectNotEmpty(uid)) {
+				Map<String, Object> map = new HashMap<String, Object>();
+				Integer activityId = Integer.parseInt(redisClientTemplate.getProperties("online.activity.id"));
+				DrActivity drActivity = drActivityService.selectByPrimaryKey(activityId);
+
+				map.put("startDate", Utils.format(drActivity.getStartTime(), "yyyy-MM-dd HH:mm:ss"));
+				map.put("endDate", Utils.format(drActivity.getEndTime(), "yyyy-MM-dd HH:mm:ss"));
+				map.put("deadline", 90);
+				map.put("uid", uid);
+				BigDecimal annualInvestAmount = drProductInvestService.getAnnualInvestSumByParam(map);
+				resultMap.put("annualInvestAmount",
+						Utils.isObjectNotEmpty(annualInvestAmount) ? annualInvestAmount : 0);
+			} else {
+				resultMap.put("annualInvestAmount", 0);
+			}
+			br.setMap(resultMap);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			br.setSuccess(false);
+			br.setErrorCode("9999");
+			log.error("十一月下半月活动", e);
+		}
+		return JSON.toJSONString(br);
+
+	}
+
+	/**
+	 * 51活动抽奖
+	 * 
+	 * @param req
+	 * @param param
+	 * @return
+	 */
+	@RequestMapping(value = "get51LotteryGift", method = RequestMethod.POST)
+	@ResponseBody
+	public String get51LotteryGift(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		Integer uid = (Integer) param.get("uid");
+//		DrMember member = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+//		if( member == null){
+//			br.setSuccess(false);
+//			br.setErrorCode("1001");
+//			br.setErrorMsg("您还没有登陆，请登陆！");
+//		}else{
+			// 活动时间
+			final String startDate = "2018-4-25";
+			final String endDate = "2018-5-15";
+			try {
+				// 查询用户是否有参加活动资格 (在活动期间外注册的用户无法参与抽奖)
+				DrMember member = drMemberService.selectMemberIsHasQualification(uid, startDate, endDate);
+				if (member == null) {
+					br.setSuccess(false);
+					br.setErrorCode("1002");
+					br.setErrorMsg("老用户和渠道用户不参与抽奖活动哦！");
+				} else {
+					redisClientTemplate.lock(member.getUid() + "");
+					br = businessReceiveRecordService.insert51LogtteryLog(member,startDate,endDate);
+				}
+			} catch (Exception e) {
+				br.setSuccess(false);
+				br.setErrorCode("9999");
+				br.setErrorMsg("抽奖失败");
+				log.error("用户[uid=" + uid + "]抽奖失败", e);
+			}
+//		} 
+	return JSON.toJSONString(br);
+	}
+	
+	
+	/**
+	 * 520活动投资排名获取
+	 * 
+	 * @param req
+	 * @param param
+	 * @return
+	 */
+	@RequestMapping(value = "get51LotteryGift", method = RequestMethod.POST)
+	@ResponseBody
+	public String get520Activity(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+		BaseResult br = new BaseResult();
+		Integer uid = (Integer) param.get("uid");
+//		DrMember member = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+//		if( member == null){
+//			br.setSuccess(false);
+//			br.setErrorCode("1001");
+//			br.setErrorMsg("您还没有登陆，请登陆！");
+//		}else{
+			// 活动时间
+			final String startDate = "2018-4-25";
+			final String endDate = "2018-5-15";
+			try {
+				// 查询用户是否有参加活动资格 (在活动期间外注册的用户无法参与抽奖)
+				DrMember member = drMemberService.selectMemberIsHasQualification(uid, startDate, endDate);
+				if (member == null) {
+					br.setSuccess(false);
+					br.setErrorCode("1002");
+					br.setErrorMsg("老用户和渠道用户不参与抽奖活动哦！");
+				} else {
+					redisClientTemplate.lock(member.getUid() + "");
+					br = businessReceiveRecordService.insert51LogtteryLog(member,startDate,endDate);
+				}
+			} catch (Exception e) {
+				br.setSuccess(false);
+				br.setErrorCode("9999");
+				br.setErrorMsg("抽奖失败");
+				log.error("用户[uid=" + uid + "]抽奖失败", e);
+			}
+//		} 
+	return JSON.toJSONString(br);
+	}
+	
+	
+}

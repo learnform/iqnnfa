@@ -1,0 +1,186 @@
+package com.dr.service.product;
+
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.dr.common.BaseResult;
+import com.dr.common.PageInfo;
+import com.dr.model.claims.DrAuditInfo;
+import com.dr.model.product.DrProductExtend;
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductInvestRepayInfo;
+import com.dr.model.product.DrProductPic;
+
+public interface DrProductInfoService {
+
+	/**
+	 * 拿到产品信息列表数据
+	 * 
+	 * @param DrProductInfo
+	 * @param PageInfo
+	 * @return BaseResult
+	 */
+	public BaseResult getDrProductInfoList(DrProductInfo drProductInfo, PageInfo pi);
+	
+	/**
+	 * 根据id得到产品信息
+	 * @param id
+	 * @return DrProductInfo
+	 */
+    public DrProductInfo getDrProductInfoByid(Integer id); 
+    
+ 	/**
+ 	 * 修改产品信息
+ 	 * @param  DrProductInfo
+	 * @param productFiles 产品图片
+	 * @param acceptPicFile 承兑图片
+ 	 * @return BaseResult
+ 	 * @throws SQLException;
+ 	 */
+ 	public BaseResult updateDrProductInfo(DrProductInfo drProductInfo,MultipartFile[] productFiles,@RequestParam MultipartFile acceptPicFile) throws Exception; 
+ 	
+ 	/**
+ 	 * 修改产品为上架
+ 	 * @param  DrProductInfo
+ 	 * @param  validatorSid 作废、上架、热推、显示，共用这个方法，作废和上架传validatorSid，显示和热推传null
+ 	 * @return BaseResult
+ 	 * @throws SQLException;
+ 	 */
+ 	public BaseResult updateDrProductStatus(DrProductInfo drProductInfo,String validatorSid) throws Exception; 
+ 	
+ 	
+ 	
+ 	/**
+ 	 * 上架后的修改
+ 	 * @param  DrProductInfo
+ 	 * @return BaseResult
+ 	 * @throws SQLException;
+ 	 */
+ 	public BaseResult updateDrProductInfoForElse(DrProductInfo drProductInfo) throws Exception; 
+ 	
+ 	/**
+ 	 * 取消预约
+ 	 * @param  DrProductInfo
+ 	 * @return void
+ 	 * @throws SQLException;
+ 	 */
+ 	public void updateDrProductCancelBespoke(DrProductInfo drProductInfo) throws Exception; 
+ 	
+	/**
+	 * 添加产品信息
+	 * @param DrProductInfo
+	 * @param productFiles 产品图片
+	 * @param acceptPicFile 承兑图片
+ 	 * @return BaseResult
+	 * @throws Exception
+	 */
+	public BaseResult insertDrProductInfo(DrProductInfo drProductInfo,
+			@RequestParam MultipartFile[] productFiles,@RequestParam MultipartFile acceptPicFile) throws Exception;
+	
+	/**
+	 * 添加产品续发信息
+	 * @param DrProductInfo
+	 * @param productFiles 产品图片
+	 * @param acceptPicFile 承兑图片
+ 	 * @return BaseResult
+	 * @throws Exception
+	 */
+	public BaseResult insertDrProductInfoRenewal(DrProductInfo drProductInfo,
+			@RequestParam MultipartFile[] productFiles,@RequestParam MultipartFile acceptPicFile) throws Exception;
+	
+	/**
+	 * 添加产品审核
+	 * 
+	 * @param DrAuditInfo
+ 	 * @return BaseResult
+	 * @throws Exception
+	 */
+	public BaseResult insertDrAuditInfo(DrAuditInfo drAuditInfo) throws Exception;
+	
+	/**
+	 * 根据MAP得到产品信息
+	 * @param getDrProductInfoByMap
+	 * @return DrProductInfo
+	 */
+	public DrProductInfo getDrProductInfoByMap(Map<String,Object> map); 
+  
+	/**
+	 * 定时更新已募集完成的产品，并生成回款记录
+	 */
+	public Integer updateProductToEnd(DrProductInfo info, char[] ary2, Integer nums) throws Exception;
+	
+	/**
+     * 查询募集完成的产品 以及募集中的新手产品
+     * @return
+     */
+    public List<DrProductInfo> selectRaiseSuccesProductInfo();
+  
+ 	/**
+ 	 * 根据条件得到产品图片
+ 	 * @param pid
+ 	 * @return List<DrProductPic>
+ 	 */
+     public List<DrProductPic> getDrProductPicByPid(Integer pid); 
+     
+ 	/**
+ 	 * 根据ID删除产品图片
+ 	 * @param id
+ 	 * @return void
+ 	 * @throws SQLException;
+ 	 */
+ 	public void deleteDrProductPicById(Integer id) throws SQLException;
+ 	
+ 	/**
+ 	 * 
+ 	 * @param drProductInfo
+ 	 * @param pi
+ 	 * @param map
+ 	 * @return
+ 	 */
+ 	public BaseResult getInvestmentPoolList(DrProductInfo drProductInfo, PageInfo pi);
+ 	
+	/**
+	 * 根据PID拿产品扩展信息
+	 * @param  pid 产品ID
+	 * @return List<DrProductExtend>
+	 * @throws SQLException;
+	 */
+	public List<DrProductExtend> getDrProductExtendByPid(int pid);
+	
+	/**
+	 * 根据参数获取产品列表--用户导出
+	 * @param map
+	 * @param pi
+	 * @return
+	 */
+	public List<Map<String,Object>> selectDrProductInfoList(Map<String, Object> map);
+	
+	/**
+	 * 回款预估数据
+	 * @param map
+	 * @param pi
+	 * @return
+	 */
+	public BaseResult selectReturnMoneyEstimate(DrProductInvestRepayInfo start,DrProductInvestRepayInfo end, PageInfo pi);
+	
+	/**
+	 * 发标预估
+	 * @param map
+	 * @return
+	 */
+	public DrProductInvestRepayInfo estimate(DrProductInvestRepayInfo drProductInvestRepayInfo);
+
+	public List<DrProductInfo> getRaiseDueProducts(Integer day);
+
+	public Integer getAutoAdded(Integer deadline);
+	/**
+	 * 折线图关联项目列表 
+	 * @param statisticsDate 统计日期
+	 * @return
+	 */
+	public BaseResult getProductForStatistics(Map<String, Object> map, PageInfo pi);
+}

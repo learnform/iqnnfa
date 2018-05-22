@@ -1,0 +1,12 @@
+package cn.iqnnfa.model;
+
+import java.nio.charset.Charset;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix="http.encoding")
+public class HttpEncodingProperties {
+	
+	public static final Charset CHARSET_NAME=Charset.forName("UTF-8");
+	
+}

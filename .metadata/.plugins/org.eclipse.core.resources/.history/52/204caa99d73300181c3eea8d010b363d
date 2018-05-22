@@ -1,0 +1,275 @@
+package com.dr.service.component;
+
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+import org.apache.commons.httpclient.DefaultHttpMethodRetryHandler;
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.HttpStatus;
+import org.apache.commons.httpclient.methods.GetMethod;
+import org.apache.commons.httpclient.params.HttpMethodParams;
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.CoreConnectionPNames;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.dr.common.SecurityUtils;
+import com.dr.common.genmybatis.plugin.DateUtils;
+
+/**
+ * 毅茗金成渠道 赠送流量服务接口
+ */
+@Component
+public class AwardPhoneDataService {
+
+
+    private Logger log = Logger.getLogger(this.getClass());
+
+    public static enum PhoneDataTypeEnum {
+        M200("200M国内"), M500("500M国内"), G1("1G国内");
+
+        String name;
+
+        PhoneDataTypeEnum(String name) {
+            this.name = name;
+        }
+
+        private static final Map<String, PhoneDataTypeEnum> stringToEnum = new HashMap<String, PhoneDataTypeEnum>();
+
+        static {
+            // Initialize map from constant name to enum constant
+            for (PhoneDataTypeEnum blah : values()) {
+                stringToEnum.put(blah.toString(), blah);
+            }
+        }
+
+        // Returns RewardTypeEnum for string, or null if string is invalid
+        public static PhoneDataTypeEnum fromString(String symbol) {
+            return stringToEnum.get(symbol);
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+
+
+    }
+
+    public static enum RewardTypeEnum {
+        BindCardType("2", "绑卡奖励"),
+        InvestType("3", "投资奖励");
+
+        String typeId;
+        String typeName;
+
+        RewardTypeEnum(String typeId, String typeName) {
+            this.typeId = typeId;
+            this.typeName = typeName;
+        }
+
+        @Override
+        public String toString() {
+            return typeId;
+        }
+    }
+
+
+    @Value("#{common['awardPhoneData.channel.url']}")
+    private String channel_url;
+
+    @Value("#{common['awardPhoneData.channel.id']}")
+    private String channel_id;
+
+    @Value("#{common['awardPhoneData.channel.key']}")
+    private String channel_key;
+
+    /**
+     * 赠送流量接口
+     *
+     * @param phone
+     * @param phoneDataType
+     * @return
+     * @throws Exception
+     */
+    public Map<String, Object> sendAwardPhoneDataMsg(String phone, PhoneDataTypeEnum phoneDataType, String... params) throws Exception {
+
+        Map<String, Object> map = new HashMap<String, Object>();
+
+        String id_four = StringUtils.leftPad(channel_id, 4, "0");
+
+        String orderId = "";
+        if (params.length > 0) {
+            orderId = params[0];
+        } else {
+
+            //订单格式：yyyyMMddHHmmsSSS+四位随机数+渠道编号（不足4位，前面用0补齐)
+            orderId = DateUtils.getDateString(new Date(), "yyyyMMddHHmmssSSS")
+                    + ((int) (Math.random() * 9000) + 1000)
+                    + id_four;
+        }
+
+        map.put("orderId", orderId);
+
+        /**
+         * md5校验码的计算方法:
+         * 包体= phone + channelid（2位，加密的不用补齐）
+         * 对: “包体+Key” 这个串进行md5 的32位值. 结果大写
+         */
+        String md5 = SecurityUtils.MD5(phone + channel_id + channel_key).toUpperCase();
+
+        HttpClient httpClient = new HttpClient();
+
+        String getUrl = null;
+        try {
+            getUrl = String.format(channel_url,
+                    orderId,
+                    phone,
+                    channel_id,
+                    URLEncoder.encode(phoneDataType.toString(), "UTF-8"),
+                    md5);
+
+
+            GetMethod getMethod = new GetMethod(getUrl);
+
+            // 设置 get 请求超时为 30 秒
+            getMethod.getParams().setParameter(HttpMethodParams.SO_TIMEOUT, 30000);
+            // 设置请求重试处理，用的是默认的重试处理：请求三次
+            getMethod.getParams().setParameter(HttpMethodParams.RETRY_HANDLER, new DefaultHttpMethodRetryHandler());
+
+            int statusCode = httpClient.executeMethod(getMethod); //状态，一般200为OK状态，其他情况会抛出如404,500,403等错误
+
+            if (statusCode == HttpStatus.SC_OK) {
+
+                //{"code":"1000006","memo":"渠道验证错误","orderid":"2017061417362012736420024"}
+                String result = getMethod.getResponseBodyAsString();
+
+                log.info("赠送流量请求地址：" + getUrl + "  ------>返回的结果：" + result);
+
+                JSONObject jsonObject = JSON.parseObject(result);
+                String code = jsonObject.getString("code");
+                if ("00000" != code) {
+                    String errorMsg = jsonObject.getString("memo");
+                    map.put("code", "1");
+                    map.put("error_msg", errorMsg);
+                }
+                map.put("code", "0");
+            } else {
+                map.put("code", "1");
+                map.put("error_msg", "网络请求失败");
+            }
+
+        } catch (Exception e) {
+            log.error("赠送流量接口请求出现异常：" + e.getMessage());
+            throw e;
+        }
+
+        return map;
+    }
+ 
+    /**
+     * 处理wps用户各种状态回调接口
+     * @param args
+     */
+    public Map<String, Object> forBackWps(String extra, String useid,String mobile,String offer_type,String key) throws Exception {
+
+        Map<String, Object> map = new HashMap<String, Object>();
+
+        /**
+         * md5校验码的计算方法:
+         * 包体= useid+offer_type+key
+         * 对: “包体+Key” 这个串进行md5 的32位值. 结果小写
+         */
+        String lowerCase = SecurityUtils.MD5(useid+offer_type+key).toLowerCase();
+
+   
+
+        HttpPost PostUrl = null;
+        try {
+            HttpClient httpClient = new HttpClient();
+
+            // 设置超时时间
+            httpClient.getParams().setParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, 2000);
+            httpClient.getParams().setParameter(CoreConnectionPNames.SO_TIMEOUT, 2000);
+                
+            PostUrl = new HttpPost(url);
+            // 构造消息头
+            PostUrl.setHeader("Content-type", "application/json; charset=utf-8");
+            PostUrl.setHeader("Connection", "Close");
+            String sessionId = getSessionId();
+            PostUrl.setHeader("SessionId", sessionId);
+            PostUrl.setHeader("appid", appid);
+                        
+            // 构建消息实体
+            StringEntity entity = new StringEntity(jsonObj.toString(), Charset.forName("UTF-8"));
+            entity.setContentEncoding("UTF-8");
+            // 发送Json格式的数据请求
+            entity.setContentType("application/json");
+            post.setEntity(entity);
+                
+            HttpResponse response = httpClient.execute(post);
+            
+            // 设置请求重试处理，用的是默认的重试处理：请求三次
+            //getMethod.getParams().setParameter(HttpMethodParams.RETRY_HANDLER, new DefaultHttpMethodRetryHandler());
+
+            int statusCode = httpClient.executeMethod(getMethod); //状态，一般200为OK状态，其他情况会抛出如404,500,403等错误
+
+            if (statusCode == HttpStatus.SC_OK) {
+
+                //{"code":"1000006","memo":"渠道验证错误","orderid":"2017061417362012736420024"}
+                String result = getMethod.getResponseBodyAsString();
+
+                log.info("赠送流量请求地址：" + getUrl + "  ------>返回的结果：" + result);
+
+                JSONObject jsonObject = JSON.parseObject(result);
+                String code = jsonObject.getString("code");
+                if ("00000" != code) {
+                    String errorMsg = jsonObject.getString("memo");
+                    map.put("code", "1");
+                    map.put("error_msg", errorMsg);
+                }
+                map.put("code", "0");
+            } else {
+                map.put("code", "1");
+                map.put("error_msg", "网络请求失败");
+            }
+
+        } catch (Exception e) {
+            log.error("赠送流量接口请求出现异常：" + e.getMessage());
+            throw e;
+        }
+
+        return map;
+    }
+    
+    // 构建唯一会话Id
+    public static String getSessionId(){
+        UUID uuid = UUID.randomUUID();
+        String str = uuid.toString();
+        return str.substring(0, 8) + str.substring(9, 13) + str.substring(14, 18) + str.substring(19, 23) + str.substring(24);
+    }
+    public static void main(String[] args) {
+
+        try {
+
+            AwardPhoneDataService.PhoneDataTypeEnum phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.fromString("200M国内");
+            System.out.println("--------->" + phoneDataTypeEnum.toString());
+//            sendAwardPhoneDataMsg("13166669999", PhoneDataTypeEnum.M200);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+}

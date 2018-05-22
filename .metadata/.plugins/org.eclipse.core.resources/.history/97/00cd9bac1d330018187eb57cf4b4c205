@@ -1,0 +1,23 @@
+package com.dr.service.member.impl;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.dr.dao.cpa.DrChannelRewardPhonedataDao;
+import com.dr.model.cpa.DrChannelRewardPhonedata;
+import com.dr.service.member.DrChannelRewardPhonedataService;
+
+@Service("drChannelRewardPhonedataService")
+public class DrChannelRewardPhonedataServuceImpl implements DrChannelRewardPhonedataService {
+	
+	@Autowired
+	private DrChannelRewardPhonedataDao drChannelRewardPhonedataDao;
+	
+	@Override
+	public void AddDrChannelRewardPhonedata(DrChannelRewardPhonedata drChannelRewardPhonedata) {
+		// TODO Auto-generated method stub
+		
+
+	}
+
+}

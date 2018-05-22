@@ -1,0 +1,12 @@
+package cn.iqnnfa;
+
+import org.springframework.stereotype.Controller;
+
+@Controller
+public class TriggerEventController {
+
+	public void triggerEvent(){
+//		ApplicationContext app = SpringApplication.run(WebApplication.class);
+//		new iqnnfaEvent(source)
+	}
+}

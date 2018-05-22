@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.dr.dao.member.DrMemberCrushDAO">
+	<resultMap id="DrMemberCrushResult" type="com.dr.model.member.DrMemberCrush">
+		<result column="id" property="id" jdbcType="INTEGER" />
+		<result column="uid" property="uid" jdbcType="INTEGER" />
+		<result column="amount" property="amount" jdbcType="DECIMAL" />
+		<result column="pound_fee" property="poundFee" jdbcType="DECIMAL" />
+		<result column="channel" property="channel" jdbcType="INTEGER" />
+		<result column="submit_userky" property="submitUserKy" jdbcType="INTEGER" />
+		<result column="remark" property="remark" jdbcType="VARCHAR" />
+		<result column="status" property="status" jdbcType="INTEGER" />
+		<result column="addtime" property="addTime" jdbcType="TIMESTAMP" />
+		<result column="auditid" property="auditId" jdbcType="INTEGER" />
+		<result column="audittime" property="auditTime" jdbcType="TIMESTAMP" />
+		<result column="paynum" property="payNum" jdbcType="VARCHAR" />
+		<result column="bankid" property="bankId" jdbcType="INTEGER" />
+		<result column="sftOrderNo" property="sftOrderNo" jdbcType="VARCHAR" />
+		<result column="sessionToken" property="sessionToken" jdbcType="VARCHAR" />
+		<result column="type" property="type" jdbcType="INTEGER" />
+		<result column="fuiouOrderId" property="fuiouOrderId" jdbcType="VARCHAR" />
+		<result column="fuiouSignPay" property="fuiouSignPay" jdbcType="VARCHAR" />
+	</resultMap>
+	
+	<!-- 修改-->
+	<update id="updateMemberCrushById" parameterType="com.dr.model.member.DrMemberCrush">
+		update dr_member_crush
+		<set>
+		remark = #{remark:VARCHAR},
+		status =#{status:INTEGER}
+			<if test="fuiouOrderId != null and fuiouOrderId !=''">  ,fuiouOrderId= #{fuiouOrderId} </if>
+			<if test="fuiouSignPay != null and fuiouSignPay !=''">  ,fuiouSignPay= #{fuiouSignPay} </if>
+		</set> 
+		<where>
+		id=#{id:INTEGER}
+		</where> 
+	</update>
+	<!-- 根据商户订单号-->
+	<select id="getDrMemberCrushByPayNum" parameterType="String" resultMap="DrMemberCrushResult">
+		select * from dr_member_crush
+		<where>
+			paynum=#{payNum:VARCHAR} and channel != 4
+		</where>
+	</select>
+	
+	<!-- 根据商户订单号查询状态-->
+	<select id="getDrMemberCrushByStatus" parameterType="String" resultMap="DrMemberCrushResult">
+		select * from dr_member_crush
+		<where>
+			paynum=#{payNum:VARCHAR} and channel != 4
+		</where>
+	</select>
+	
+	<!-- 添加充值记录 -->
+	<insert id="insertDrMemberCrush" parameterType="com.dr.model.member.DrMemberCrush" useGeneratedKeys="true" keyProperty="id">
+    insert into dr_member_crush ( uid, amount, pound_fee, channel, submit_userky, remark,
+      status, addtime, auditid, audittime,paynum,bankid,sftOrderNo,sessionToken,type)
+    values (#{uid:INTEGER}, #{amount:DECIMAL}, #{poundFee:DECIMAL}, #{channel:INTEGER},
+      #{submitUserKy:INTEGER}, #{remark:VARCHAR}, #{status:INTEGER},SYSDATE(), #{auditId:INTEGER},
+      #{auditTime:TIMESTAMP},#{payNum:VARCHAR},#{bankId:INTEGER},#{sftOrderNo:VARCHAR},#{sessionToken:VARCHAR},#{type:INTEGER})
+  	</insert>
+
+</mapper>

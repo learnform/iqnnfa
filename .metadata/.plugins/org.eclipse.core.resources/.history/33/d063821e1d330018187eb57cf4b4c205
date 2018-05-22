@@ -1,0 +1,5 @@
+package com.dr.service.member;
+
+public interface DrChannelRewardPhonedataService {
+
+}

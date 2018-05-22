@@ -1,0 +1,14 @@
+package cn.iqnnfa.configClass;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.event.ApplicationContextEvent;
+
+public class iqnnfaEvent extends ApplicationContextEvent{
+
+	public iqnnfaEvent(ApplicationContext source) {
+		super(source);
+		// TODO Auto-generated constructor stub
+	}
+
+	
+}

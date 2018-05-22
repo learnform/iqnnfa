@@ -1,0 +1,8 @@
+package cn.iqnnfa.configClass;
+
+
+@Configuration
+@EnableConfigurationProperties(HttpEncdoingProperties.class)
+public class HttpEncodingAutoConfiguration {
+
+}

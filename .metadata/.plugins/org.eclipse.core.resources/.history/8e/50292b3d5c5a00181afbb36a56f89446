@@ -1,0 +1,7 @@
+package cn.iqnnfa.configClass;
+
+import org.springframework.http.converter.AbstractHttpMessageConverter;
+
+public class MyMessageConverter extends AbstractHttpMessageConverter<>{
+
+}

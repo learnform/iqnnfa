@@ -1,0 +1,7 @@
+package cn.iqnnfa.service;
+
+import cn.iqnnfa.model.DrMember;
+
+public interface IndexService {
+	public DrMember findMemberByUid(Integer id);
+}

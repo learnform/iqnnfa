@@ -1,0 +1,10 @@
+package com.dr.service.activity;
+
+import java.util.List;
+import java.util.Map;
+
+public interface BusinessReceiveRecordService {
+	
+	List<Map<String,Object>> findBusinessReceiveRecordByUid(Integer uid);
+
+}

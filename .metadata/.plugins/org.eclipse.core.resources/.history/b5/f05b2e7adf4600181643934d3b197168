@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.dr.dao.activity.BusinessLuckDrawConfigMapper" >
+  <resultMap id="BaseResultMap" type="com.dr.model.activity.BusinessLuckDrawConfig" >
+    <id column="id" property="id" jdbcType="INTEGER" />
+    <result column="invest_amount_66" property="investAmount66" jdbcType="DECIMAL" />
+    <result column="invest_amount_90" property="investAmount90" jdbcType="DECIMAL" />
+    <result column="rate" property="rate" jdbcType="DECIMAL" />
+    <result column="prize_id" property="prizeId" jdbcType="INTEGER" />
+    <result column="addTime" property="addtime" jdbcType="TIMESTAMP" />
+  </resultMap>
+  	
+  	
+</mapper>

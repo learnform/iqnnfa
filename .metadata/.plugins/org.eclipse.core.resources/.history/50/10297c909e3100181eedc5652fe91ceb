@@ -1,0 +1,24 @@
+package iqnnfa;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.json.JSONObject;
+
+import cn.iqnnfa.model.AnxinSignRequestVo;
+import cn.iqnnfa.model.Person;
+import cn.iqnnfa.model.head;
+
+public class ForTest {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		String code = null;
+	    System.out.println(null == code);
+		
+		
+		
+	}
+
+}

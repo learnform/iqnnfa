@@ -1,0 +1,7 @@
+package cn.iqnnfa.configClass;
+
+import org.springframework.context.ApplicationListener;
+
+public class iqnnfaListen implements ApplicationListener<E> {
+
+}

@@ -1,0 +1,70 @@
+package cn.iqnnfa.service.impl;
+
+import java.io.IOException;
+import java.util.UUID;
+
+import org.apache.solr.client.solrj.SolrServer;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.impl.HttpSolrServer;
+import org.apache.solr.client.solrj.response.UpdateResponse;
+import org.apache.solr.common.SolrInputDocument;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanNameAware;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import cn.iqnnfa.dao.IndexDAO;
+import cn.iqnnfa.model.DrMember;
+import cn.iqnnfa.service.IndexService;
+
+@Service
+public class IndexServiceImpl implements IndexService,BeanNameAware{
+	
+	private String beanName = null;
+	@Autowired
+	private IndexDAO indexDAO;
+	@Override
+	@Transactional
+	@Cacheable("rMember")
+	public DrMember findMemberByUid(Integer id) {
+		// TODO Auto-generated method stub
+		final Logger logger = LoggerFactory.getLogger(IndexServiceImpl.class);
+
+		
+	    		 try {
+					DrMember drMember = indexDAO.findMemberByUid(id);
+					return drMember;
+				} catch (Exception e) {
+					logger.equals("插入失败");
+				}
+	    		 return null;
+	}
+	@Override
+	public void setBeanName(String name) {
+		// TODO Auto-generated method stub
+		this.beanName = name;
+	}
+	 
+	public void addDocument(){
+		HttpSolrServer solrServer = new HttpSolrServer("http://192.168.56.102:8080");
+        // 创建一个文档对象  
+        SolrInputDocument document = new SolrInputDocument();  
+        document.addField("id", "001");  
+        document.addField("name", "fy");  
+        document.addField("sex", "女");  
+        // 把文档对象写入索引库  
+        try {
+			solrServer.add(document);
+			solrServer.commit();  
+		} catch (SolrServerException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}  
+        // 提交  
+	}
+}

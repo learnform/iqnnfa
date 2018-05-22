@@ -1,0 +1,49 @@
+package com.dr.controller.task;
+
+import com.dr.common.SmsSendUtil;
+import com.dr.service.cpa.DrChannelRewardPhonedataService;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+/**
+ * 赠送流量任务   每半小时执行一次，对符合的绑卡、投资用户赠送相应的流量
+ */
+@Component
+public class AwardPhoneDataTask {
+
+    private Logger log = Logger.getLogger(this.getClass());
+
+    @Autowired
+    DrChannelRewardPhonedataService drChannelRewardPhonedataService;
+
+
+    /**
+     * 赠送流量job   0 6,26,46 * * * ?  0 0/2 * * * ?
+     */
+
+//    @Scheduled(cron="0 6,26,46 * * * ?")
+    public void processAwardPhoneData(){
+
+        try {
+            drChannelRewardPhonedataService.processAwardRewardPhoneData();
+
+        } catch (Exception e) {
+            log.error("执行赠送流量任务失败", e);
+            try {
+                SmsSendUtil.sendMsg("18317165702", "执行赠送流量任务失败", 0);
+            } catch (Exception e1) {
+                e1.printStackTrace();
+            }
+        }
+
+    }
+    
+    public void processWpsDate(){
+    	
+    	
+    	
+    	
+    }
+}

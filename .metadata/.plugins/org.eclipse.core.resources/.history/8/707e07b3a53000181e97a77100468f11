@@ -1,0 +1,95 @@
+package com.dr.dao.product;
+
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductType;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Map;
+
+public interface DrProductInfoDAO {
+
+    /**
+     * 获取体验标信息
+     *
+     * @return
+     */
+    public DrProductInfo selectNewHandInfo();
+
+    /**
+     * 获取15天新手标信息
+     *
+     * @return
+     */
+    public DrProductInfo selectFifteendaysProductInfo();
+
+    /**
+     * 获取默认显示的标
+     *
+     * @return
+     */
+    public DrProductInfo selectDefaultProductInfo();
+
+    /**
+     * 获取产品列表
+     *
+     * @param param
+     * @return
+     */
+    public List<Map<String, Object>> selectProductInfoListByParam(Map<String, Object> param);
+
+    /**
+     * 产品列表总数
+     *
+     * @param param
+     * @return
+     */
+    public Integer selectProductInfoListCountByParam(Map<String, Object> param);
+
+    /**
+     * 根据PID查找产品详情
+     *
+     * @param param
+     * @return
+     */
+    public DrProductInfo selectProductDetailByPid(@Param(value = "id") Integer pid);
+
+    /**
+     * 通过产品ID查找产品详情
+     *
+     * @param param
+     * @return
+     */
+    public DrProductInfo selectProductByPrimaryKey(Integer id);
+
+    /**
+     * 只修改已募集金额，剩余金额，产品状态
+     * 通过主键修改
+     *
+     * @param info DrProductInfo
+     */
+    public void updateProductSelective(DrProductInfo info);
+
+    public List<DrProductInfo> selectHotProductInfo();
+
+    public List<DrProductInfo> selectAutoAddedProduct(String fullName);
+
+    public void updateDrProductInfo(DrProductInfo product);
+
+    Integer selectProductInfoListByParamCount(Map<String, Object> map);
+
+
+    /**
+     * 获得推荐的产品数据.
+     *
+     * @return 产品数据
+     */
+    List<DrProductInfo> getRecommendedProductList();
+
+    /**
+     * 产品类型.
+     *
+     * @return 类型数据.
+     */
+    List<DrProductType> getTypeList();
+}

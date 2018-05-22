@@ -1,0 +1,11 @@
+package cn.iqnnfa.task;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class ForTaskPag {
+
+	public void justForTest(){
+		
+	}
+}

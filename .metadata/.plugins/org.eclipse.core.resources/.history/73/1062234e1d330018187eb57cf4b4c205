@@ -1,0 +1,11 @@
+package com.dr.service.member;
+
+import org.springframework.beans.factory.annotation.Autowired;
+
+import com.dr.dao.cpa.DrChannelRewardPhonedataDao;
+import com.dr.model.cpa.DrChannelRewardPhonedata;
+
+public interface DrChannelRewardPhonedataService {
+
+   public void AddDrChannelRewardPhonedata(DrChannelRewardPhonedata drChannelRewardPhonedata );
+}

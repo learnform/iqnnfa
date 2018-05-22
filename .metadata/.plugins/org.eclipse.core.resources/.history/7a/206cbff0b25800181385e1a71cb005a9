@@ -1,0 +1,13 @@
+package cn.iqnnfa.task;
+
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+@Component
+public class ForTaskPag {
+	
+	@Scheduled(cron="0 */1 * * * ?")
+	public void justForTest(){
+		System.out.println("测试定时任务——————一分钟跑一次");
+	}
+}

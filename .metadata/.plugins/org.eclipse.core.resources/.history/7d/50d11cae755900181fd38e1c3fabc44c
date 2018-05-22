@@ -1,0 +1,29 @@
+package com.dr.service.activity.impl;
+
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.dr.dao.activity.DrActivityDAO;
+import com.dr.model.activity.DrActivity;
+import com.dr.service.activity.DrActivityService;
+
+@Service
+public class DrActivityServiceImpl implements DrActivityService {
+	
+	@Autowired
+	private DrActivityDAO drActivityDAO;
+
+	@Override
+	public DrActivity selectByPrimaryKey(Integer id) {
+		return drActivityDAO.selectByPrimaryKey(id);
+	}
+
+	@Override
+	public Map<String, Object> selectInvestRanking(String startDate,String endDate) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+}

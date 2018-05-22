@@ -1,0 +1,7 @@
+package cn.iqnnfa;
+
+import org.springframework.core.io.InputStreamSource;
+
+public interface Resource extends InputStreamSource {
+
+}

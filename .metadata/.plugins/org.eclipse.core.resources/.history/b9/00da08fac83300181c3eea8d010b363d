@@ -1,0 +1,247 @@
+package com.dr.service.cpa.impl;
+
+import com.dr.common.SmsSendUtil;
+import com.dr.common.Utils;
+import com.dr.dao.cpa.DrChannelRewardPhonedataDao;
+import com.dr.model.cpa.DrChannelRewardPhonedata;
+import com.dr.model.cpa.DrCpaDeviceRecord;
+import com.dr.model.cpa.RewardPhoneDataMemberInfo;
+import com.dr.service.component.AwardPhoneDataService;
+import com.dr.service.cpa.DrChannelRewardPhonedataService;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.util.*;
+
+
+@Service
+public class DrChannelRewardPhonedataServiceImpl implements DrChannelRewardPhonedataService {
+
+
+    private Logger log = Logger.getLogger(this.getClass());
+
+    @Autowired
+    private DrChannelRewardPhonedataDao drChannelRewardPhonedataDao;
+
+    @Autowired
+    private AwardPhoneDataService awardPhoneDataService;
+
+    /**
+     * 赠送流量业务
+     */
+    public void processAwardRewardPhoneData() {
+
+
+        long t1 = System.currentTimeMillis();
+        log.info(Utils.format(new Date(), "yyyy-MM-dd HH:mm:ss") + ":开始处理赠送流量Job");
+
+        List<DrChannelRewardPhonedata> rewardPhonedataAddList = new ArrayList<DrChannelRewardPhonedata>();
+
+        //查找对应渠道当天绑卡且未有赠送流量纪录的数据
+        List<RewardPhoneDataMemberInfo> members = drChannelRewardPhonedataDao.getAwardUserByBindCard();
+        log.info("bindcard members size:  " + members.size());
+        addRewardPhoneData(members, AwardPhoneDataService.RewardTypeEnum.BindCardType, rewardPhonedataAddList);
+        if (rewardPhonedataAddList.size() > 0)
+            drChannelRewardPhonedataDao.batchInsert(rewardPhonedataAddList);
+
+        rewardPhonedataAddList.clear();
+        //查找对应渠道当天符合第一次投资的且未有赠送流量纪录的数据
+        List<RewardPhoneDataMemberInfo> invest_members = drChannelRewardPhonedataDao.getAwardUserByInvest();
+        log.info("invest members size:  " + invest_members.size());
+        addRewardPhoneData2(invest_members, AwardPhoneDataService.RewardTypeEnum.InvestType, rewardPhonedataAddList);
+
+        if (rewardPhonedataAddList.size() > 0)
+            drChannelRewardPhonedataDao.batchUpdateByPrimaryKey(rewardPhonedataAddList);
+
+
+        long t2 = System.currentTimeMillis(); // 排序后取得当前时间
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(t2 - t1);
+
+        log.info("结束处理赠送流量Job 耗时: " + c.get(Calendar.MINUTE) + "分 "
+                + c.get(Calendar.SECOND) + "秒 " + c.get(Calendar.MILLISECOND)
+                + " 毫秒");
+
+    }
+
+    /**
+     * 对符合条件的数据赠送相应的流量
+     *
+     * @param members
+     * @param rewardType
+     */
+    private void addRewardPhoneData(List<RewardPhoneDataMemberInfo> members, AwardPhoneDataService.RewardTypeEnum rewardType, List<DrChannelRewardPhonedata> rewardPhonedataList) {
+
+        if (members.size() > 0)
+            for (RewardPhoneDataMemberInfo member : members) {
+                try {
+
+                    DrChannelRewardPhonedata rewardPhonedata = new DrChannelRewardPhonedata();
+                    rewardPhonedata.setUid(member.getUid());
+                    rewardPhonedata.setPhone(member.getMobilePhone());
+                    rewardPhonedata.setRewardType(rewardType.toString());
+                    rewardPhonedata.setCreateTime(new Date());
+                    rewardPhonedata.setEffType("2");
+
+                    if (member.getInvestId() != null && member.getInvestId() > 0) {
+                        rewardPhonedata.setInvestId(member.getInvestId());
+                    }
+
+                    AwardPhoneDataService.PhoneDataTypeEnum phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.M200;
+
+                    //根据奖励类型及投资金额来判断送多少流量
+                    switch (rewardType) {
+                        case BindCardType:
+                            phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.M200;
+                            break;
+                        case InvestType:
+                            if (member.getAmount().compareTo(new BigDecimal("200")) >= 0 && member.getAmount().compareTo(new BigDecimal("1000")) < 0) {
+                                phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.M500;
+                            } else {
+                                phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.G1;
+                            }
+                            break;
+
+                    }
+
+                    rewardPhonedata.setProductName(phoneDataTypeEnum.toString());
+
+                    //给用户赠送流量
+                    Map<String, Object> result = awardPhoneDataService.sendAwardPhoneDataMsg(member.getMobilePhone(), phoneDataTypeEnum);
+                    if ("0" == result.get("code")) {//赠送成功
+                        rewardPhonedata.setStatus("2");
+                    } else {
+                        rewardPhonedata.setStatus("1");
+                        rewardPhonedata.setFailureReason(result.get("error_msg").toString());
+                    }
+
+                    rewardPhonedata.setProcessTime(new Date());
+                    rewardPhonedata.setOrderId(result.get("orderId").toString());
+
+                    //添加赠送纪录
+                    rewardPhonedataList.add(rewardPhonedata);
+                } catch (Exception e) {
+                    log.error("==>执行赠送流量任务失败 用户编号：" + member.getUid() + "  用户手机号：" + member.getMobilePhone(), e);
+                    try {
+                        SmsSendUtil.sendMsg("18317165702", "执行赠送流量任务失败，用户" + member.getUid(), 0);
+                    } catch (Exception e1) {
+                        e1.printStackTrace();
+                    }
+                }
+            }
+    }
+
+    /**
+     * 发放投资送流量，如果首投资金不足200的，则修改状态为3 达标则修改原数据
+     *
+     * @param members
+     * @param rewardType
+     * @param rewardPhonedataList
+     */
+    public void addRewardPhoneData2(List<RewardPhoneDataMemberInfo> members, AwardPhoneDataService.RewardTypeEnum rewardType, List<DrChannelRewardPhonedata> rewardPhonedataList) {
+
+        if (members.size() > 0)
+            for (RewardPhoneDataMemberInfo member : members) {
+                try {
+
+                    DrChannelRewardPhonedata rewardPhonedata = drChannelRewardPhonedataDao.selectByPrimaryKey(member.getRewardId());
+
+                    //判断投资金额是否达标
+                    if (member.getAmount().compareTo(new BigDecimal("200")) < 0) {//不达标
+                        rewardPhonedata.setRewardType("4");//不奖励
+                        rewardPhonedataList.add(rewardPhonedata);
+                    } else {
+
+                        rewardPhonedata.setRewardType(rewardType.toString());
+
+                        if (member.getInvestId() != null && member.getInvestId() > 0) {
+                            rewardPhonedata.setInvestId(member.getInvestId());
+                        }
+
+                        AwardPhoneDataService.PhoneDataTypeEnum phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.M200;
+
+                        if (member.getAmount().compareTo(new BigDecimal("200")) >= 0 && member.getAmount().compareTo(new BigDecimal("1000")) < 0) {
+                            phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.M500;
+                        } else {
+                            phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.G1;
+                        }
+
+                        rewardPhonedata.setProductName(phoneDataTypeEnum.toString());
+
+                        //给用户赠送流量
+                        Map<String, Object> result = awardPhoneDataService.sendAwardPhoneDataMsg(member.getMobilePhone(), phoneDataTypeEnum);
+                        if ("0" == result.get("code")) {//赠送成功
+                            rewardPhonedata.setStatus("2");
+                        } else {
+                            rewardPhonedata.setStatus("1");
+                            rewardPhonedata.setFailureReason(result.get("error_msg").toString());
+                        }
+
+                        rewardPhonedata.setProcessTime(new Date());
+                        rewardPhonedata.setOrderId(result.get("orderId").toString());
+                    }
+
+                    //添加赠送纪录
+                    rewardPhonedataList.add(rewardPhonedata);
+
+                } catch (Exception e) {
+                    log.error("==>执行赠送流量任务失败 用户编号：" + member.getUid() + "  用户手机号：" + member.getMobilePhone(), e);
+                    try {
+                        SmsSendUtil.sendMsg("18317165702", "执行赠送流量任务失败，用户" + member.getUid(), 0);
+                    } catch (Exception e1) {
+                        e1.printStackTrace();
+                    }
+                }
+            }
+    }
+
+
+    /**
+     * 上次赠送失败的，再试尝试赠送，暂不调用
+     */
+    private void reRewardPhoneDataForFaild(){
+
+        List<DrChannelRewardPhonedata> rewardPhonedataUpdateList = new ArrayList<DrChannelRewardPhonedata>();
+        //对上次赠送失败的再次发送请求处理赠送
+        List<DrChannelRewardPhonedata> rewardPhonedatas = drChannelRewardPhonedataDao.selectFaildReward();
+        log.info("上次赠送失败的订单 size:  " + rewardPhonedatas.size());
+        for (DrChannelRewardPhonedata rewardPhonedata : rewardPhonedatas) {
+            try {
+                AwardPhoneDataService.PhoneDataTypeEnum phoneDataTypeEnum = AwardPhoneDataService.PhoneDataTypeEnum.fromString(rewardPhonedata.getProductName());
+                //再次尝试给用户赠送流量，直到处理成功
+                Map<String, Object> result = awardPhoneDataService.sendAwardPhoneDataMsg(rewardPhonedata.getPhone(), phoneDataTypeEnum, rewardPhonedata.getOrderId());
+                if ("0" == result.get("code")) {//赠送成功
+                    rewardPhonedata.setStatus("2");
+                } else {
+                    rewardPhonedata.setStatus("1");
+                    rewardPhonedata.setFailureReason(result.get("error_msg").toString());
+                }
+
+                rewardPhonedata.setProcessTime(new Date());
+                log.info("再次尝试赠送流量订单号：" + rewardPhonedata.getOrderId() + "  处理结果：" + result.get("code"));
+
+                //更新订单
+                rewardPhonedataUpdateList.add(rewardPhonedata);
+            } catch (Exception e) {
+                log.error("==>再次尝试赠送流量任务失败，订单号：" + rewardPhonedata.getOrderId(), e);
+                try {
+//                    SmsSendUtil.sendMsg("18317165702", "再次尝试赠送流量任务失败，订单号" + rewardPhonedata.getOrderId(), 0);
+                } catch (Exception e1) {
+                    e1.printStackTrace();
+                }
+            }
+        }
+
+        if (rewardPhonedataUpdateList.size() > 0)
+            drChannelRewardPhonedataDao.batchUpdateByPrimaryKey(rewardPhonedataUpdateList);
+    }
+
+	@Override
+	public void processAwardPhoneData() {
+		// TODO Auto-generated method stub
+		
+	}
+
+}

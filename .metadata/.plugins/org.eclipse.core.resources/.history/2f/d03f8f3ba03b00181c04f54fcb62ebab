@@ -1,0 +1,54 @@
+package com.thirdparty.wps;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.sun.istack.internal.Nullable;
+import com.thirdparty.data.HttpResponseEntity;
+import org.apache.log4j.Logger;
+import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.Objects;
+
+/**
+ * @author 李小双
+ * Wps 接口
+ */
+@Service
+public class WpsApi extends BaseWpsApiObject {
+
+    private Logger logger = org.apache.log4j.Logger.getLogger(this.getClass());
+
+    /**
+     * 回调WPS 奖励
+     *
+     * @param userId 用户Id
+     * @param extra  额外参数
+     * @param type   类型
+     * @param phone  手机号
+     * @return 是否成功
+     */
+    @Nullable
+    @Override
+    public boolean callbackReward(final String userId, final String extra, final String type, final String phone, final String key) {
+        final String url = URL + "/task/api/reward";
+        final Integer size = 12;
+        final HashMap<String, Object> parameters = new HashMap<>(size);
+        final String succeed = "ok";
+        parameters.put("userid", userId);
+        parameters.put("offer_type", type);
+        parameters.put("pass", getSignature(userId + type + key));
+        parameters.put("extra", extra);
+        parameters.put("mobile", phone);
+        HttpResponseEntity responseEntity = post(url, parameters);
+        if (responseEntity.getSucceed()) {
+            final String result = responseEntity.getBodyString();
+            JSONObject object = JSON.parseObject(result);
+            if (Objects.equals(object.get("result"), succeed)) {
+                return true;
+            }
+        }
+        logger.error("调用WPS接口错误,响应报文::" + responseEntity.getBodyString());
+        return false;
+    }    
+}

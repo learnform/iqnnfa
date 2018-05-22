@@ -1,0 +1,251 @@
+package com.dr.service.product.impl;
+
+import java.math.BigDecimal;
+import java.sql.SQLException;
+import java.util.*;
+
+import com.alibaba.fastjson.JSONObject;
+import com.dr.common.ConfigUtil;
+import com.dr.controller.product.ProductController;
+import com.dr.dao.activity.DrMemberFavourableDAO;
+import com.dr.dao.product.DrProductInfoDAO;
+import com.dr.model.activity.DrMemberFavourable;
+import com.dr.model.product.DrProductInfo;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.dr.common.PageInfo;
+import com.dr.common.Utils;
+import com.dr.dao.activity.DrGiftCardSetUpDAO;
+import com.dr.dao.activity.DrGiftCardSetUpDetailDAO;
+import com.dr.dao.member.DrMemberMsgDAO;
+import com.dr.dao.product.DrProductInvestDAO;
+import com.dr.model.activity.DrGiftCardSetUp;
+import com.dr.model.activity.DrGiftCardSetUpDetail;
+import com.dr.model.member.DrMember;
+import com.dr.model.member.DrMemberMsg;
+import com.dr.model.product.DrProductInvest;
+import com.dr.service.product.DrProductInvestService;
+import com.dr.service.system.impl.RedisClientTemplate;
+
+@Service
+@Transactional
+public class DrProductInvestServiceImpl implements DrProductInvestService {
+
+    private Logger log = Logger.getLogger(this.getClass());
+
+    @Autowired
+    private DrProductInvestDAO drProductInvestDAO;
+    @Autowired
+    private RedisClientTemplate redisClientTemplate;
+    @Autowired
+    private DrMemberMsgDAO drMemberMsgDAO;
+    @Autowired
+    private DrGiftCardSetUpDAO drGiftCardSetUpDAO;
+    @Autowired
+    private DrGiftCardSetUpDetailDAO drGiftCardSetUpDetailDAO;
+    @Autowired
+    private DrProductInfoDAO drProductInfoDAO;
+    @Autowired
+    private DrMemberFavourableDAO drMemberFavourableDAO;
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public PageInfo selectInvestLogByParam(Map<String, Object> map, PageInfo pi) {
+        map.put("offset", pi.getPageInfo().getOffset());
+        map.put("limit", pi.getPageInfo().getLimit());
+        List<DrProductInvest> list = drProductInvestDAO.selectInvestLogByParam(map);
+        try {
+            //为募集中的投资记录计算实际收益
+            if (map.containsKey("status") && "0".equals(String.valueOf(map.get("status"))) && list != null && list.size() > 0) {
+                BigDecimal repairRate = BigDecimal.ZERO;//补标利率
+                BigDecimal interestProfit = BigDecimal.ZERO;//应得总利息
+                DrProductInfo info = null;
+                for (DrProductInvest invest : list) {
+                    if (invest.getFactInterest().compareTo(BigDecimal.ZERO) == 0) {
+                        info = drProductInfoDAO.selectProductByPrimaryKey(invest.getPid());
+                        interestProfit = getInvestProfit(info, invest, repairRate);
+                        invest.setFactInterest(interestProfit);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("为募集中的投资记录计算实际收益异常", e);
+        }
+        Integer total = drProductInvestDAO.selectInvestLogCountByParam(map);
+        map.clear();
+        pi.setTotal(total);
+        pi.setRows(list);
+        return pi;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public PageInfo selectInvestLogByParam1(Map<String, Object> map, PageInfo pi) {
+        map.put("offset", pi.getPageInfo().getOffset());
+        map.put("limit", pi.getPageInfo().getLimit());
+        List<DrProductInvest> list = drProductInvestDAO.selectInvestLogByParam(map);
+        Integer total = drProductInvestDAO.selectInvestLogCountByParam(map);
+        map.clear();
+        Collections.sort(list);
+        pi.setTotal(total);
+        pi.setRows(list);
+        return pi;
+    }
+
+    /**
+     * 获得下载地址.
+     * @param uid 用户id
+     * @param id  投资id
+     * @return
+     */
+    @Override
+    public String getDownloadUrl(Integer uid, Integer id) {
+        final String downloadId = UUID.randomUUID().toString().replace("-", "").toUpperCase();
+        final String contractNo = drProductInvestDAO.getContractNo(uid, id);
+        final String key = "downloadId:" + downloadId;
+        redisClientTemplate.setex(key, 300, contractNo);
+        return ConfigUtil.COLOR_API_URL + "/contract/download?id=" + downloadId;
+    }
+
+    @Override
+    public Integer selectInvestNumsByPid(Integer pid) {
+        return drProductInvestDAO.selectInvestNumsByPid(pid);
+    }
+
+    @Override
+    public BigDecimal selectUserSumPrincipalByStatus(Integer status, Integer uid) {
+        return drProductInvestDAO.selectUserSumPrincipalByStatus(status, uid);
+    }
+
+    @Override
+    public BigDecimal selectUserSumInterestByStatus(Integer status, Integer uid) {
+        return drProductInvestDAO.selectUserSumInterestByStatus(status, uid);
+    }
+
+    @Override
+    public Map<String, Object> selectUserLastInvestmentInfo(Integer uid) {
+        return drProductInvestDAO.selectUserLastInvestmentInfo(uid);
+    }
+
+    @Override
+    public void sendTicket(DrMember member, BigDecimal amount) throws Exception {
+        if (amount.compareTo(new BigDecimal(2000)) >= 0) {
+            Map<String, Object> map = new HashMap<String, Object>();
+            map.clear();
+            map.put("uid", member.getUid());
+            map.put("deadline", 15);
+            map.put("amount", 2000);
+            List<DrProductInvest> investList = drProductInvestDAO.selectInvestList(map);
+            if (investList.size() == 1) {
+                map.clear();
+                map.put("toFrom", member.getToFrom());
+                map.put("now", investList.get(0).getInvestTime());
+                List<DrGiftCardSetUp> setUplist = drGiftCardSetUpDAO.getEfficaciousDrGiftCardSetUpList(map);
+                if (!Utils.isEmptyList(setUplist)) {
+                    for (DrGiftCardSetUp setup : setUplist) {
+                        map.clear();
+                        map.put("parentId", setup.getId());
+                        map.put("limit", setup.getOnceQty());
+                        DrGiftCardSetUpDetail giftCardDetail = drGiftCardSetUpDetailDAO.getDrGiftCardSetUpDetailBySetUpId(map);
+                        if (Utils.isObjectNotEmpty(giftCardDetail)) {
+                            String code = giftCardDetail.getGiftCard();
+                            map.clear();
+                            map.put("ids", giftCardDetail.getIds());
+                            map.put("uid", member.getUid());
+                            map.put("investId", investList.get(0).getId());
+                            drGiftCardSetUpDetailDAO.updateGiftCardSetUpDetailMap(map);
+                            DrMemberMsg msg = new DrMemberMsg(member.getUid(), 0, 2, "0元看电影", new Date(), 0, 0,
+                                    redisClientTemplate.getProperties("ticketMsg").replace("${1}", code));
+                            drMemberMsgDAO.insertDrMemberMsg(msg);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public BigDecimal getAnnualInvestSumByParam(Map<String, Object> map) {
+        return drProductInvestDAO.getAnnualInvestSumByParam(map);
+    }
+
+    @Override
+    public DrProductInvest selectByPrimaryKey(Integer id) {
+        return drProductInvestDAO.selectByPrimaryKey(id);
+    }
+
+    @Override
+    public BigDecimal selectAllProductInvest(Map<String, Object> map) {
+        // TODO Auto-generated method stub
+        return drProductInvestDAO.selectAllProductInvest(map);
+    }
+
+    /**
+     * 计算投资金额以及优惠券可获得收益
+     *
+     * @param info       产品
+     * @param invest     投资记录
+     * @param repairRate 补标利率
+     * @return balanceProfit 返还到账户余额的收益，interestProfit 利息收益
+     * @throws SQLException
+     */
+    private BigDecimal getInvestProfit(DrProductInfo info, DrProductInvest invest, BigDecimal repairRate) throws Exception {
+        BigDecimal interestProfit = BigDecimal.ZERO;//应得总利息
+        Integer deadline = info.getDeadline();
+        int num = Utils.compare_date1(Utils.getparseDate(info.getStartDate(),"yyyy-MM-dd"),"2018-04-13");
+        if (invest.getFid() != null) {//使用优惠券
+            DrMemberFavourable dmf = drMemberFavourableDAO.selectByPrimaryKey(invest.getFid());
+            if (dmf.getType() == 1) {//红包
+            	if(num == 1){
+            		 BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate()).add(repairRate), 100), 365);//日息
+                     interestProfit = invest.getAmount().multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+            	}else{
+            		 BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate()).add(repairRate), 100), 360);//日息
+                     interestProfit = invest.getAmount().multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+            	}
+               
+            } else if (dmf.getType() == 2) {//加息券
+            	if(num == 1){
+            		 BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate())
+                             .add(dmf.getRaisedRates()).add(repairRate), 100), 365);//日息（包含加息券）
+                     interestProfit = invest.getAmount()
+                             .multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+            	}else{
+            		
+            		 BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate())
+                             .add(dmf.getRaisedRates()).add(repairRate), 100), 360);//日息（包含加息券）
+                     interestProfit = invest.getAmount()
+                             .multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+            	}
+               
+
+            } else if (dmf.getType() == 3) {//体验金
+            	if(num == 1){
+            		BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate()).add(repairRate), 100), 360);//日息
+                    interestProfit = dmf.getAmount().add(invest.getAmount())
+                            .multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+            	}else{
+            		
+            		
+            	}
+                
+
+            } else if (dmf.getType() == 4) {//翻倍券
+                BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().multiply(dmf.getMultiple())
+                        .add(info.getActivityRate()).add(repairRate), 100), 360);//日息（包含翻倍金）
+                BigDecimal dayRate1 = Utils.nwdDivide(Utils.nwdDivide(info.getRate()
+                        .add(info.getActivityRate()).add(repairRate), 100), 360);//日息(不包含翻倍金)
+                interestProfit = invest.getAmount()
+                        .multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+            }
+        } else {
+            BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate()).add(repairRate), 100), 360);//日息
+            interestProfit = invest.getAmount().multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+        }
+        return interestProfit;
+    }
+
+}

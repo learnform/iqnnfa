@@ -1,0 +1,839 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.dr.dao.product.DrProductInfoDAO">
+	<resultMap id="DrProductInfoResult" type="com.dr.model.product.DrProductInfo">
+		<result column="id" property="id" jdbcType="INTEGER" />
+		<result column="fid" property="fid" jdbcType="INTEGER" />		
+		<result column="sid" property="sid" jdbcType="INTEGER" />
+		<result column="code" property="code" jdbcType="VARCHAR" />
+		<result column="fullName" property="fullName" jdbcType="VARCHAR" />
+		<result column="simpleName" property="simpleName" jdbcType="VARCHAR" />		
+		<result column="type" property="type" jdbcType="INTEGER" />
+		<result column="status" property="status" jdbcType="INTEGER" />	
+		<result column="intermediary" property="intermediary" jdbcType="INTEGER" />	
+		<result column="isSid" property="isSid" jdbcType="INTEGER" />	
+		<result column="amount" property="amount" jdbcType="DECIMAL" />	
+		<result column="alreadyRaiseAmount" property="alreadyRaiseAmount" jdbcType="DECIMAL" />
+		<result column="surplusAmount" property="surplusAmount" jdbcType="DECIMAL" />
+		<result column="rate" property="rate" jdbcType="DECIMAL" />
+		<result column="activityRate" property="activityRate" jdbcType="DECIMAL" />
+		<result column="repayType" property="repayType" jdbcType="INTEGER" />
+		<result column="deadline" property="deadline" jdbcType="INTEGER" />	
+		<result column="leastaAmount" property="leastaAmount" jdbcType="DECIMAL" />
+		<result column="increasAmount" property="increasAmount" jdbcType="DECIMAL" />
+		<result column="maxAmount" property="maxAmount" jdbcType="DECIMAL" />
+		<result column="raiseDeadline" property="raiseDeadline" jdbcType="INTEGER" />
+		<result column="startDate" property="startDate" jdbcType="TIMESTAMP" />
+		<result column="fullDate" property="fullDate" jdbcType="TIMESTAMP" />
+		<result column="expireDate" property="expireDate" jdbcType="TIMESTAMP" />
+		<result column="introduce" property="introduce" jdbcType="VARCHAR" />
+		<result column="borrower" property="borrower" jdbcType="VARCHAR" />	
+		<result column="repaySource" property="repaySource" jdbcType="VARCHAR" />
+		<result column="windMeasure" property="windMeasure" jdbcType="VARCHAR" />
+		<result column="isShow" property="isShow" jdbcType="INTEGER" />
+		<result column="isHot" property="isHot" jdbcType="INTEGER" />	
+		<result column="isDeductible" property="isDeductible" jdbcType="INTEGER" />	
+		<result column="isInterest" property="isInterest" jdbcType="INTEGER" />	
+		<result column="isCash" property="isCash" jdbcType="INTEGER" />	
+		<result column="isDouble" property="isDouble" jdbcType="INTEGER" />		
+		<result column="isRepair" property="isRepair" jdbcType="INTEGER" />				
+		<result column="mappingStatus" property="mappingStatus" jdbcType="INTEGER"/>
+		<result column="establish" property="establish" jdbcType="TIMESTAMP" />
+		<result column="accept" property="accept" jdbcType="VARCHAR" />
+		<result column="acceptPic" property="acceptPic" jdbcType="VARCHAR" />
+		<result column="addDate" property="addDate" jdbcType="TIMESTAMP" />
+		<result column="addUser" property="addUser" jdbcType="INTEGER" />
+		<result column="updDate" property="updDate" jdbcType="TIMESTAMP" />														
+		<result column="updUser" property="updUser" jdbcType="INTEGER" />
+		<result column="pcUrl" property="pcUrl" jdbcType="VARCHAR" />
+		<result column="appUrl" property="appUrl" jdbcType="VARCHAR" />
+		<result column="immediately" property="immediately" jdbcType="INTEGER" />
+		<result column="riskLevel" property="riskLevel" jdbcType="INTEGER" />
+	</resultMap>
+	
+	<select id="getNeedMatchingProductList" parameterType="java.util.HashMap" resultType="com.dr.model.product.DrProductInfo">
+		select pi.*,max(mapping.endDate) as mappingEndDate,ifnull(sum(mapping.mappingAmount),0) as mappingAmount,
+			pi.amount- ifnull(sum(mapping.mappingAmount),0) as remainsAmount,count(mapping.id) as mappingCount,
+			DATE_SUB(pi.expireDate,INTERVAL pi.deadline DAY) as raiseSuccessDate
+		from dr_product_info pi
+		left JOIN dr_creditor_right_mapping mapping ON pi.id = mapping.pid
+		<where>
+			<if test="code != null">
+				and pi.code like CONCAT('%','${code}','%')
+			</if>
+			<if test="simpleName != null">
+				and pi.simpleName like CONCAT('%','${simpleName}','%' )
+			</if>
+			<if test="searchStartDate != null">
+				<![CDATA[and DATE_FORMAT(DATE_SUB(pi.expireDate,INTERVAL pi.deadline DAY),'%Y-%m-%d') >= DATE_FORMAT(#{searchStartDate},'%Y-%m-%d') ]]>
+			</if>
+			<if test="searchEndDate != null">
+				<![CDATA[and DATE_FORMAT(DATE_SUB(pi.expireDate,INTERVAL pi.deadline DAY),'%Y-%m-%d') <= DATE_FORMAT(#{searchEndDate},'%Y-%m-%d') ]]>
+			</if>
+			
+			<if test="type != null">
+				and pi.type=#{type}
+			</if>
+			<if test="status != null">
+				and	pi.status in 
+				<foreach item="item" index="index" collection="status" open="(" separator="," close=")">  
+				 	#{item}  
+				</foreach>
+			</if>
+			<if test="mappingStatuses != null">
+				and mappingStatus  in
+				<foreach collection="mappingStatuses" item="item" open="(" close=")" separator=",">
+						#{item} 
+				</foreach> 
+			</if>
+			group by pi.id
+			<if test="limit !=null">
+				limit #{offset},#{limit}
+			</if>
+		</where>
+	</select>
+		
+	<!-- 获取产品信息列表 -->
+	<select id="getDrProductInfoList" parameterType="java.util.HashMap" resultType="com.dr.model.product.DrProductInfo">
+		select fullDate,establish,id,isSid,renewal,bespoke,code,simpleName,rate,deadline,amount,alreadyRaiseAmount,status,isShow,isHot,fid,isAuto,autoAmount,autoNum,startDate,surplusDay,subSubplusDays
+		,investCount	,riskLevel
+		from (select dpi1.*,case when DATEDIFF(dpi1.expireDate,SYSDATE())>0 then DATEDIFF(dpi1.expireDate,SYSDATE()) else 0 end as surplusDay,
+		(select fid from dr_product_info dpi2 where dpi2.fid = dpi1.id and dpi2.`status` !=4) renewal,
+		case when dpi1.startDate>SYSDATE() then 1 else 0 end bespoke,
+		case when DATEDIFF(subInfo.endDate,SYSDATE())+1>0 THEN DATEDIFF(subInfo.endDate,SYSDATE())+1 else 0 end as subSubplusDays
+		,(SELECT count(DISTINCT dpi.id) from dr_product_invest dpi where dpi.pid=dpi1.id ) as investCount
+		from dr_product_info dpi1 left join dr_subject_info subInfo on subInfo.id = dpi1.sid) dpi
+		<where>
+		1=1
+			<if test="sid != null and sid > 0">
+				and dpi.sid = #{sid}
+			</if>
+			<if test="simpleName != null and simpleName != ''">
+				and dpi.simpleName like CONCAT('%','${simpleName}','%' )
+			</if>
+			<if test="code != null and code != ''"> 
+				and dpi.code like CONCAT('%','${code}','%' )
+			</if>
+			<if test="deadline != null"> 
+				and dpi.deadline =#{deadline}
+			</if>
+			<if test="surplusDay != null"> 
+				and dpi.surplusDay =#{surplusDay}
+			</if>
+			<if test="type != null"> 
+				and dpi.type =#{type}
+			</if>
+			<if test="status != null">
+				and	dpi.status in 
+				<foreach item="item" index="index" collection="status" open="(" separator="," close=")">  
+				 #{item}  
+				</foreach>
+			</if>
+			<if test="isAuto != null">
+				and dpi.isAuto =#{isAuto}
+			</if>
+			<if test="dateStart != null and dateStart !=''">
+				and DATE_FORMAT(dpi.fullDate,'%y%m%d') <![CDATA[>=]]> DATE_FORMAT(#{dateStart},'%y%m%d')
+			</if>
+			<if test="dateEnd != null and dateEnd !=''">
+				and DATE_FORMAT(dpi.fullDate,'%y%m%d') <![CDATA[<=]]> DATE_FORMAT(#{dateEnd},'%y%m%d')
+			</if>
+			
+			
+			<if test="dateStart1 != null and dateStart1 !=''">
+				and DATE_FORMAT(dpi.startDate,'%y%m%d') <![CDATA[>=]]> DATE_FORMAT(#{dateStart1},'%y%m%d')
+			</if>
+			<if test="dateEnd1 != null and dateEnd1 !=''">
+				and DATE_FORMAT(dpi.startDate,'%y%m%d') <![CDATA[<=]]> DATE_FORMAT(#{dateEnd1},'%y%m%d')
+			</if>
+			
+			
+		</where>
+		<if test="limit !=null">
+			<![CDATA[ order by surplusDay>0 and surplusDay<5  and renewal is null and isSid =1 desc,addDate DESC  ]]>
+			limit #{offset},#{limit}
+		</if>
+	</select>
+	
+	<!-- 获取产品信息总数 -->
+	<select id="getDrProductInfoCounts" parameterType="java.util.HashMap" resultType="java.lang.Integer">
+		select count(1) from (
+			select dpi1.*,case when DATEDIFF(dpi1.expireDate,SYSDATE())>0 then DATEDIFF(dpi1.expireDate,SYSDATE()) else 0 end as surplusDay
+			from dr_product_info dpi1
+		) dpi
+		<where>
+		1=1
+			<if test="sid != null and sid > 0">
+				and dpi.sid = #{sid}
+			</if>
+			<if test="type != null"> 
+				and dpi.type =#{type}
+			</if>
+			<if test="simpleName != null and simpleName != ''">
+				and dpi.simpleName like CONCAT('%','${simpleName}','%' )
+			</if>
+			<if test="code != null and code != ''"> 
+				and dpi.code like CONCAT('%','${code}','%' )
+			</if>
+			<if test="deadline != null"> 
+				and dpi.deadline =#{deadline}
+			</if>
+			<if test="surplusDay != null"> 
+				and dpi.surplusDay =#{surplusDay}
+			</if>
+			<if test="status != null">
+				and	dpi.status in 
+				<foreach item="item" index="index" collection="status" open="(" separator="," close=")">  
+				 #{item}  
+				</foreach>
+			</if>
+			<if test="isAuto != null">
+				and dpi.isAuto =#{isAuto}
+			</if>
+			<if test="dateStart != null and dateStart !=''">
+				and DATE_FORMAT(dpi.fullDate,'%y%m%d') <![CDATA[>=]]> DATE_FORMAT(#{dateStart},'%y%m%d')
+			</if>
+			<if test="dateEnd != null and dateEnd !=''">
+				and DATE_FORMAT(dpi.fullDate,'%y%m%d') <![CDATA[<=]]> DATE_FORMAT(#{dateEnd},'%y%m%d')
+			</if>
+			
+			
+			<if test="dateStart1 != null and dateStart1 !=''">
+				and DATE_FORMAT(dpi.startDate,'%y%m%d') <![CDATA[>=]]> DATE_FORMAT(#{dateStart1},'%y%m%d')
+			</if>
+			<if test="dateEnd1 != null and dateEnd1 !=''">
+				and DATE_FORMAT(dpi.startDate,'%y%m%d') <![CDATA[<=]]> DATE_FORMAT(#{dateEnd1},'%y%m%d')
+			</if>
+			
+			
+			
+		</where>
+	</select>
+	
+	<!-- 导出产品 -->
+	<select id="selectDrProductInfoList" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+		select dpi.id,dpi.code,dpi.fullName,dpi.rate,dpi.deadline,dpi.amount,dpi.alreadyRaiseAmount,sc2.cnvalue as statusName,
+		DATE_FORMAT(dpi.startDate,'%Y-%m-%d %H:%i:%s') as startDate,dpi.raiseDeadline,riskLevel,
+		DATE_FORMAT(dpi.fullDate,'%Y-%m-%d %H:%i:%s') as fullDate,DATE_FORMAT(dpi.expireDate,'%Y-%m-%d') as expireDate,
+		case when DATEDIFF(dpi.expireDate,SYSDATE())>0 then DATEDIFF(dpi.expireDate,SYSDATE()) else 0 end as surplusDay,
+		dpi.accept,if(dpi.isInterest=0,'否','是')isInterest,if(dpi.isCash=0,'否','是')isCash,if(dpi.isDouble=0,'否','是')isDouble,
+		loan.`name` as sName,dpi2.fullName as parentName
+		,(SELECT count(DISTINCT dpi5.id) from dr_product_invest dpi5 where dpi5.pid=dpi.id ) as investCount		
+		from dr_product_info dpi
+		left join dr_subject_info si ON dpi.sid = si.id
+		left join dr_claims_loan loan ON si.lid = loan.id
+		left JOIN sys_chooseoption  sc ON sc.category='productType' and dpi.type = sc.code
+		left JOIN sys_chooseoption  sc2 ON sc2.category='productStatus' and dpi.status= sc2.code
+		left JOIN dr_product_info dpi2 ON dpi.fid = dpi2.id
+		<where>
+		1=1
+		<if test="sid != null and sid > 0">
+				and dpi.sid = #{sid}
+			</if>
+			<if test="simpleName != null and simpleName != ''">
+				and dpi.simpleName like CONCAT('%','${simpleName}','%' )
+			</if>
+			<if test="code != null and code != ''"> 
+				and dpi.code like CONCAT('%','${code}','%' )
+			</if>
+			<if test="status != null">
+				and	dpi.status=#{status}
+			</if>
+			<if test="deadline != null">
+				and	dpi.deadline=#{deadline}
+			</if>
+			<if test="surplusDay != null">
+				and DATEDIFF(dpi.expireDate,SYSDATE())=#{surplusDay}
+			</if>
+			<if test="isAuto != null">
+				and	dpi.isAuto=#{isAuto}
+			</if>
+			<if test="dateStart != null and dateStart !='' ">
+				and	date_format(dpi.fullDate,'%Y%m%d') <![CDATA[>= ]]> date_format(#{dateStart},'%Y%m%d')
+			</if>
+			<if test="dateEnd != null and dateEnd !=''">
+				and	date_format(dpi.fullDate,'%Y%m%d') <![CDATA[<= ]]> date_format(#{dateEnd},'%Y%m%d')
+			</if>
+		</where>
+	</select>
+	
+	<!-- 添加产品信息 -->
+	<insert id="insertDrProductInfo" parameterType="com.dr.model.product.DrProductInfo" useGeneratedKeys="true" keyProperty="id">
+		insert into dr_product_info(fid,sid,code,fullName,simpleName,type,status,intermediary,isSid,amount,alreadyRaiseAmount,surplusAmount,rate,activityRate,repayType,deadline,
+		leastaAmount,increasAmount,maxAmount,raiseDeadline,startDate,introduce,borrower,repaySource,windMeasure,isShow,isHot,isDeductible,
+		isInterest,isCash,isDouble,isRepair,establish,accept,acceptPic,isAuto,autoAmount,autoNum,addDate,addUser,pcUrl,appUrl,immediately,riskLevel)
+		values (#{fid:INTEGER},#{sid:INTEGER},#{code:VARCHAR},#{fullName:VARCHAR},#{simpleName:VARCHAR},#{type:INTEGER},#{status:INTEGER},#{intermediary:INTEGER},#{isSid:INTEGER},
+		#{amount:DECIMAL},#{alreadyRaiseAmount:DECIMAL},#{surplusAmount:DECIMAL},#{rate:DECIMAL},#{activityRate:DECIMAL},#{repayType:INTEGER},#{deadline:INTEGER},#{leastaAmount:DECIMAL},
+		#{increasAmount:DECIMAL},#{maxAmount:DECIMAL},#{raiseDeadline:INTEGER},#{startDate:TIMESTAMP},#{introduce:VARCHAR},#{borrower:VARCHAR},
+		#{repaySource:VARCHAR},#{windMeasure:VARCHAR},#{isShow:INTEGER},#{isHot:INTEGER},#{isDeductible:INTEGER},#{isInterest:INTEGER},
+		#{isCash:INTEGER},#{isDouble:INTEGER},#{isRepair:INTEGER},#{establish:TIMESTAMP},#{accept:VARCHAR},#{acceptPic:VARCHAR},#{isAuto:INTEGER},#{autoAmount:DECIMAL},#{autoNum:INTEGER},sysdate(),#{addUser:INTEGER},#{pcUrl:VARCHAR},#{appUrl:VARCHAR},
+		#{immediately:INTEGER},#{riskLevel:INTEGER})
+	</insert>
+	
+	<!-- 查询募集完成的产品 -->
+	<select id="selectRaiseSuccesProductInfo" resultMap="DrProductInfoResult">
+		select id,sid,code,simpleName,fullName,type,status, alreadyRaiseAmount, surplusAmount, intermediary,amount,rate,activityRate,isRepair,
+				repayType,deadline,leastaAmount,increasAmount,maxAmount,raiseDeadline,startDate,establish,immediately,riskLevel
+		from dr_product_info where status = 6 and type = 3
+		union all
+		select id,sid,code,simpleName,fullName,type,status, alreadyRaiseAmount, surplusAmount, intermediary,amount,rate,activityRate,isRepair,
+				repayType,deadline,leastaAmount,increasAmount,maxAmount,raiseDeadline,startDate,establish,immediately,riskLevel
+		from dr_product_info where status = 6 and type in (2,5,6) and DATE_FORMAT(establish, '%Y-%m-%d') = DATE_FORMAT(NOW(), '%Y-%m-%d')
+		union all 
+		select id,sid,code,simpleName,fullName,type,status, alreadyRaiseAmount, surplusAmount, intermediary,amount,rate,activityRate,isRepair,
+				repayType,deadline,leastaAmount,increasAmount,maxAmount,raiseDeadline,startDate,establish,immediately,riskLevel
+		from dr_product_info where status = 5 and type=1
+	</select>
+	
+	<!-- 修改产品信息  -->
+	<update id="updateDrProductInfo" parameterType="com.dr.model.product.DrProductInfo">
+		update dr_product_info
+		<set>
+			<if test="sid != null"> sid = #{sid:INTEGER},</if>
+			<if test="code != null"> code = #{code:VARCHAR},</if>
+			<if test="fullName != null"> fullName = #{fullName:VARCHAR},</if>
+			<if test="simpleName != null"> simpleName = #{simpleName:VARCHAR},</if>
+			<if test="type != null"> type = #{type:INTEGER},</if>
+			<if test="status != null"> status = #{status:INTEGER},</if>
+			<if test="intermediary != null"> intermediary = #{intermediary:INTEGER},</if>
+			<if test="isSid != null"> isSid = #{isSid:INTEGER},</if>
+			<if test="amount != null"> amount = #{amount:DECIMAL},</if>
+			<if test="alreadyRaiseAmount != null"> alreadyRaiseAmount = #{alreadyRaiseAmount:DECIMAL},</if>
+			<if test="surplusAmount != null"> surplusAmount = #{surplusAmount:DECIMAL},</if>
+			<if test="rate != null"> rate = #{rate:DECIMAL},</if>
+			<if test="activityRate != null"> activityRate = #{activityRate:DECIMAL},</if>			
+			<if test="repayType != null"> repayType = #{repayType:INTEGER},</if>
+			<if test="deadline != null"> deadline = #{deadline:INTEGER},</if>
+			<if test="leastaAmount != null"> leastaAmount = #{leastaAmount:DECIMAL},</if>
+			<if test="increasAmount != null"> increasAmount = #{increasAmount:DECIMAL},</if>
+			<if test="maxAmount != null"> maxAmount = #{maxAmount:DECIMAL},</if>
+			<if test="raiseDeadline != null"> raiseDeadline = #{raiseDeadline:INTEGER},</if>
+			<if test="startDate != null"> startDate = #{startDate:TIMESTAMP},</if>
+			<if test="expireDate != null"> expireDate = #{expireDate:TIMESTAMP},</if>
+			<if test="introduce != null"> introduce = #{introduce:VARCHAR},</if>
+			<if test="borrower != null"> borrower = #{borrower:VARCHAR},</if>
+			<if test="repaySource != null"> repaySource = #{repaySource:VARCHAR},</if>
+			<if test="windMeasure != null"> windMeasure = #{windMeasure:VARCHAR},</if>
+			<if test="isShow != null"> isShow = #{isShow:INTEGER},</if>
+			<if test="isHot != null"> isHot = #{isHot:INTEGER},</if>
+			<if test="isDeductible != null"> isDeductible = #{isDeductible:INTEGER},</if>
+			<if test="isInterest != null"> isInterest = #{isInterest:INTEGER},</if>
+			<if test="isCash != null"> isCash = #{isCash:INTEGER},</if>
+			<if test="isDouble != null"> isDouble = #{isDouble:INTEGER},</if>
+			<if test="isRepair != null"> isRepair = #{isRepair:INTEGER},</if>			
+			<if test="mappingStatus != null">mappingStatus=#{mappingStatus:INTEGER},</if>
+			<if test="establish != null">establish=#{establish:TIMESTAMP},</if>			
+			<if test="accept != null">accept=#{accept:VARCHAR},</if>
+			<if test="acceptPic != null">acceptPic=#{acceptPic:VARCHAR},</if>
+			<if test="isAuto != null">isAuto=#{isAuto:INTEGER},</if>
+			<if test="autoAmount != null">autoAmount=#{autoAmount:DECIMAL},</if>
+			<if test="autoNum != null">autoNum=#{autoNum:INTEGER},</if>
+			<if test="autoAddTime != null">autoAddTime=#{autoAddTime:TIMESTAMP},</if>
+			<if test="immediately != 0">immediately=#{immediately:INTEGER},</if>
+			updDate = sysdate(),
+			<if test="updUser != null"> updUser = #{updUser:INTEGER},</if>
+			<if test="pcUrl != null"> pcUrl = #{pcUrl:VARCHAR},</if>
+			<if test="appUrl != null"> appUrl = #{appUrl:VARCHAR},</if>
+			<if test="riskLevel!=null">riskLevel = #{riskLevel:INTEGER}</if>
+		</set>
+		where id = #{id:INTEGER}
+	</update>
+	
+	<!-- 取消预约 -->
+	<update id="updateDrProductCancelBespoke" parameterType="com.dr.model.product.DrProductInfo">
+		update dr_product_info
+		<set>
+			status = #{status:INTEGER},
+			startDate = #{startDate:TIMESTAMP},
+			expireDate = #{expireDate:TIMESTAMP},
+			establish=#{establish:TIMESTAMP},		
+			updDate = sysdate(),
+			updUser = #{updUser:INTEGER}
+		</set>
+		where id = #{id:INTEGER}
+	</update>
+	
+	<!-- 根据id得到产品信息 -->
+	<select id="getDrProductInfoByid" parameterType="java.lang.Integer" resultType="com.dr.model.product.DrProductInfo">
+		select *,case when DATEDIFF(expireDate,SYSDATE())>0 then DATEDIFF(expireDate,SYSDATE()) else 0 end as surplusDay from dr_product_info
+		<where>
+			id = #{id:INTEGER}
+		</where>
+	</select>
+	
+	<!-- 根据MAP得到产品信息 -->
+	<select id="getDrProductInfoByMap" parameterType="java.util.HashMap" resultType="com.dr.model.product.DrProductInfo">
+		select * from dr_product_info
+		<where>
+			<if test="fid != null"> fid = #{fid:INTEGER}</if>
+			<if test="code != null"> and code = #{code:VARCHAR}</if>
+			<if test="type != null"> and type = #{type:INTEGER}</if>
+			<if test="status != null"> and status = #{status:INTEGER}</if>
+			<if test="noStatus != null"> and status != #{noStatus:INTEGER}</if>
+		</where>
+	</select>
+	
+	<!-- 根据MAP得到产品信息List -->
+	<select id="getDrProductInfoListByMap" parameterType="java.util.HashMap" resultType="com.dr.model.product.DrProductInfo">
+		select * from dr_product_info
+		<where>
+			<if test="sid != null"> sid = #{sid:INTEGER}</if>
+			<if test="status != null">and status != #{status:INTEGER}</if>
+			<if test="fullDate != null">and DATE_FORMAT(fullDate,'%Y-%m-%d') = DATE_FORMAT(#{fullDate},'%Y-%m-%d')</if>
+			<if test="hasSid != null and hasSid==1"> and sid is not null </if>
+			<if test="statuses != null">
+				and status in 
+				<foreach collection="statuses" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+			</if>
+			<if test="fullName != null"> and fullName = #{fullName:VARCHAR}</if>
+			<if test="noId != null"> and id != #{noId:INTEGER}</if>
+		</where>
+		<if test="limit != null">
+			limit #{offset},#{limit}
+		</if>
+	</select>
+	<!-- 根据MAP得到产品信息List -->
+	<select id="getDrProductInfoListCountByMap" parameterType="java.util.HashMap" resultType="int">
+		select count(*) from dr_product_info
+		<where>
+			<if test="sid != null"> sid = #{sid:INTEGER}</if>
+			<if test="status != null"> and status != #{status:INTEGER}</if>
+			<if test="fullDate != null">and DATE_FORMAT(fullDate,'%Y-%m-%d') = DATE_FORMAT(#{fullDate},'%Y-%m-%d')</if>
+			<if test="hasSid != null and hasSid==1"> and sid is not null </if>
+			<if test="statuses != null">
+				and status in 
+				<foreach collection="statuses" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+			</if>
+		</where>
+	</select>
+	<!-- 查询要到期产品 -->
+	<select id="selectExpireProductInfo" resultMap="DrProductInfoResult">
+		select * from dr_product_info where status = 8 and DATE_FORMAT(expireDate,'%Y-%m-%d') <![CDATA[ <= ]]> DATE_FORMAT(NOW(),'%Y-%m-%d')
+		union all
+		select * from dr_product_info where status = 5 and  type = 1
+	</select>
+	<update id="updateDrProductInfoStatusById">
+		update dr_product_info set status = #{status} where id = #{pid}
+	</update>
+	<!-- 查询未做债权匹配的续发产品 -->
+	<select id="selectTransferProductInfo" resultMap="DrProductInfoResult">
+		select id,status,mappingStatus,amount,fid from dr_product_info where mappingStatus = 0 and status = 8 and fid is not null
+	</select>
+	<update id="updateMappingStatusByPid" parameterType = "java.lang.Integer">
+		update dr_product_info set mappingStatus=2 where id = #{id}
+	</update>	
+	
+	<resultMap type="com.dr.model.product.DrProductInvestRepayInfo" id="ReturnMoneyEstimate">
+		<result property="shouldTime" column="expireDate" jdbcType="TIMESTAMP"/>
+		<result property="expireLabel" column="sum(a)" jdbcType="DECIMAL"/>
+		<result property="transferLabel" column="sum(b)" jdbcType="DECIMAL"/>
+		<result property="sumReturnMoney" column="sum(c)" jdbcType="DECIMAL"/>
+	</resultMap>
+	<!-- 回款预估数据 -->	
+	<select id="selectReturnMoneyEstimate" resultMap="ReturnMoneyEstimate" parameterType="java.util.HashMap">
+		SELECT expireDate,sum(a),sum(b),sum(c) FROM (
+			SELECT dpi.expireDate,0 AS a,0 AS b,sum(dpi.amount) AS c FROM dr_product_info dpi where 
+			dpi.status in 
+			<foreach collection="statuses" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+			and dpi.type in
+			<foreach collection="types" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+			GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d')  
+			UNION ALL
+			SELECT dpi.expireDate,sum(dpi.amount) AS a,0 AS b,0 AS c FROM dr_product_info dpi 
+			LEFT JOIN dr_subject_info dsi on dsi.id = dpi.sid
+			WHERE DATEDIFF(dsi.endDate+1,dpi.expireDate)+1<![CDATA[<]]>7 and 
+			dpi.status in 
+			<foreach collection="statuses" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+			and dpi.type in
+			<foreach collection="types" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+			GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d') 
+			UNION ALL
+			SELECT dpi.expireDate,0 AS a,sum(dpi.amount) AS b,0 AS c FROM dr_product_info dpi 
+			LEFT JOIN dr_subject_info dsi on dsi.id = dpi.sid
+			WHERE DATEDIFF(dsi.endDate+1,dpi.expireDate)+1>=7 and
+			dpi.status in 
+			<foreach collection="statuses" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+			and dpi.type in
+			<foreach collection="types" item="item" open="(" separator="," close=")">
+				#{item}
+			</foreach>
+			GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d')
+	 	) d 
+		 <where>
+		<if test="startTime != null and startTime != '' "> 
+			 <![CDATA[and DATE_FORMAT(d.expireDate,'%Y-%m-%d') >= DATE_FORMAT(#{startTime},'%Y-%m-%d')]]>
+		</if>
+		<if test="endTime != null and endTime != '' ">
+		 	 <![CDATA[and DATE_FORMAT(d.expireDate,'%Y-%m-%d') <= DATE_FORMAT(#{endTime},'%Y-%m-%d')]]>
+		</if>
+		</where>
+		GROUP BY DATE_FORMAT(d.expireDate, '%Y-%m-%d') ORDER BY expireDate DESC
+		limit #{offset},#{limit}
+	</select>	
+	<!-- 查询回款预估记录数 -->
+	<select id="selectCountReturnMoneyEstimate" resultType="int" parameterType="java.util.HashMap">
+		select count(1) from (SELECT expireDate,sum(a),sum(b),sum(c) FROM (
+		SELECT dpi.expireDate,0 AS a,0 AS b,sum(dpi.amount) AS c FROM dr_product_info dpi
+		where 
+				 dpi.status in 
+				 <foreach collection="statuses" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+				and dpi.type in
+				<foreach collection="types" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+		GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d')  
+		UNION ALL
+				SELECT dpi.expireDate,sum(dpi.amount) AS a,0 AS b,0 AS c FROM dr_product_info dpi 
+				LEFT JOIN dr_subject_info dsi on dsi.id = dpi.sid
+		WHERE DATEDIFF(dsi.endDate+1,dpi.expireDate)+1 <![CDATA[<]]>7
+						and dpi.status in 
+				<foreach collection="statuses" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+				and dpi.type in
+				<foreach collection="types" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+				GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d') 
+		UNION ALL
+				SELECT dpi.expireDate,0 AS a,sum(dpi.amount) AS b,0 AS c FROM dr_product_info dpi 
+				LEFT JOIN dr_subject_info dsi on dsi.id = dpi.sid
+		WHERE DATEDIFF(dsi.endDate+1,dpi.expireDate)+1 <![CDATA[>=]]>7
+						and dpi.status in 
+				<foreach collection="statuses" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+				and dpi.type in
+				<foreach collection="types" item="item" open="(" separator="," close=")">
+					#{item}
+				</foreach>
+				GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d')
+		 ) d 
+			 <where>
+			<if test="startTime != null and startTime != '' "> 
+				 <![CDATA[and DATE_FORMAT(d.expireDate,'%Y-%m-%d') >= DATE_FORMAT(#{startTime},'%Y-%m-%d')]]>
+			</if>
+			<if test="endTime != null and endTime != '' ">
+			 	 <![CDATA[and DATE_FORMAT(d.expireDate,'%Y-%m-%d') <= DATE_FORMAT(#{endTime},'%Y-%m-%d')]]>
+			</if>
+			</where>
+				GROUP BY DATE_FORMAT(d.expireDate, '%Y-%m-%d') ORDER BY expireDate DESC )last
+		
+	</select>
+	<!--发标预估 -->
+	<select id="estimate" resultMap="ReturnMoneyEstimate" parameterType="java.util.HashMap">
+		SELECT expireDate,sum(a),sum(b),sum(c) FROM ( 
+			SELECT dpi.expireDate,0 AS a,0 AS b,sum(dpi.amount) AS c
+			FROM dr_product_info dpi 
+			WHERE dpi.status in 
+					<foreach collection="statuses" item="item" open="(" separator="," close=")">
+						#{item}
+					</foreach>
+					and dpi.type in
+					<foreach collection="types" item="item" open="(" separator="," close=")">
+						#{item}
+					</foreach>
+			GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d')  
+			UNION ALL 
+			SELECT dpi.expireDate,sum(dpi.amount) AS a,0 AS b,0 AS c FROM dr_product_info dpi 
+			LEFT JOIN dr_subject_info dsi on dsi.id = dpi.sid
+			WHERE DATEDIFF(dsi.endDate+1,dpi.expireDate)+1<![CDATA[<]]>7 and
+					 dpi.status in
+					<foreach collection="statuses" item="item" open="(" separator="," close=")">
+						#{item}
+					</foreach>
+					and dpi.type in
+					<foreach collection="types" item="item" open="(" separator="," close=")">
+						#{item}
+					</foreach>
+			GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d') 
+			UNION ALL 
+			SELECT dpi.expireDate,0 AS a,sum(dpi.amount) AS b,0 AS c FROM
+			dr_product_info dpi LEFT JOIN dr_subject_info dsi on dsi.id = dpi.sid 
+			WHERE DATEDIFF(dsi.endDate+1,dpi.expireDate)+1<![CDATA[>=]]>7 and
+					dpi.status in
+					<foreach collection="statuses" item="item" open="(" separator="," close=")">
+						#{item}
+					</foreach>
+					and dpi.type in
+					<foreach collection="types" item="item" open="(" separator="," close=")">
+						#{item}
+					</foreach>
+			GROUP BY DATE_FORMAT(dpi.expireDate, '%Y-%m-%d')
+			union all 
+			select (select date_sub(curdate(),interval -#{sumTime} day) as expireDate),case when #{fid} then 0 else #{sumReturnMoney} END as a,
+			case when #{fid} then #{sumReturnMoney} else 0 END  as b, #{sumReturnMoney} as c 
+		) d
+		where expireDate=(select date_sub(curdate(),interval -#{sumTime} day) )
+		GROUP BY DATE_FORMAT(d.expireDate, '%Y-%m-%d')
+	</select>
+	
+	<select  id="getRaiseDueProducts" resultMap="DrProductInfoResult" parameterType="java.lang.Integer">
+		SELECT
+			T.*
+		FROM
+			dr_product_info T
+		WHERE
+			T.surplusAmount <![CDATA[>]]> 0
+		AND DATEDIFF(NOW(), T.ESTABLISH) <![CDATA[>=]]>  #{day}
+		AND DATEDIFF(NOW(), T.ESTABLISH) <![CDATA[<]]> 0
+	</select>
+	
+	<select id="getAutoAdded"  resultType="java.lang.Integer" parameterType="java.lang.Integer">
+		SELECT
+			COALESCE (COUNT(1), 0)
+		FROM
+			dr_product_info t
+		WHERE
+			t.isAuto = 1
+		AND t.status = 5
+		AND t.deadline = #{deadline}
+		AND t.startDate IS NULL
+	</select>
+	
+	<select id="productRepaymentTotal" resultType="java.math.BigDecimal" parameterType="java.lang.String">
+	SELECT sum(a.factamount)  as  factamount from (
+		select sum(dpi.factamount) as factamount   from dr_product_invest dpi
+		LEFT JOIN dr_product_info p on p.id=dpi.pid
+		where  p.type != 1 and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')= #{statisticsDate}
+		and p.status != 2  
+	) as a
+	
+	</select>
+	
+	
+	<select id="productInterest" resultType="java.math.BigDecimal" parameterType="java.lang.String">
+	SELECT sum(a.factInterest)  as factInterest from (
+		select sum(dpi.factInterest) as factInterest   from dr_product_invest dpi
+		LEFT JOIN dr_product_info p on p.id=dpi.pid
+		where  p.type != 1 and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')= #{statisticsDate}
+		and p.status != 2
+	) as a
+	
+	</select>
+	
+	<select id="productRepaymentTotalForPage" resultType="com.dr.model.system.StatisticsInvestEntity" parameterType="java.util.Map">
+		select sum(a.interestTotal) interestTotal ,sum(a.repaymentTotal)  repaymentTotal ,(sum(a.interestTotal)+sum(a.repaymentTotal)) as total ,
+				a.statisticdDate as statisticdDate
+		 from (
+			select sum(dpi.factInterest) as interestTotal,sum(dpi.factamount) as repaymentTotal ,(sum(dpi.factamount)+sum(dpi.factInterest)) as total ,
+				DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d') as statisticdDate from dr_product_invest dpi
+				LEFT JOIN dr_product_info p on p.id=dpi.pid
+				where   p.type != 1
+				and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')  <![CDATA[>= ]]> #{startDate}
+				and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')  <![CDATA[ <=]]> #{endDate}
+				and  p.status != 2
+				group by DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d') 
+		
+		) as a
+		where a.statisticdDate is not null		                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
+		group by a.statisticdDate
+		order by  a.statisticdDate asc
+		<if test="limit !=null">
+				limit #{offset},#{limit}
+		</if>
+	</select>
+	
+	<select id="productRepaymentTotalForCount" resultType="java.lang.Integer" parameterType="java.util.Map">
+		select count( b.statisticdDate) from 
+		(
+		select DISTINCT a.statisticdDate from (
+			select sum(dpi.factInterest) as interestTotal,sum(dpi.factamount) as repaymentTotal ,(sum(dpi.factamount)+sum(dpi.factInterest)) as total ,
+				DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d') as statisticdDate from dr_product_invest dpi
+				LEFT JOIN dr_product_info p on p.id=dpi.pid
+				where   p.type != 1
+				and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')  <![CDATA[>= ]]> #{startDate}
+				and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')  <![CDATA[ <=]]> #{endDate}
+				and  p.status != 2
+				group by DATE_FORMAT(date_sub(p.expireDate,interval -1 day), '%Y-%m-%d')
+		
+		) as a
+		where a.statisticdDate is not null		
+		group by a.statisticdDate
+		) as b
+	</select>
+	
+	<select id="productRepaymentTotalForThisPage" parameterType="java.util.Map" resultType="java.util.HashMap">
+		SELECT sum(a.interestTotal) as interestTotal ,sum(a.repaymentTotal) as repaymentTotal ,
+			(sum(a.repaymentTotal)+sum(a.interestTotal)) as total ,'本页总计' as statisticdDate
+		from (	
+		
+			select sum(b.interestTotal) interestTotal,sum(b.repaymentTotal) repaymentTotal ,sum(b.total) total,b.expireDate  
+			from (
+				select sum(dpi.factInterest) as interestTotal,sum(dpi.factamount) as repaymentTotal ,
+					(sum(dpi.factamount)+sum(dpi.factInterest)) as total ,DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d') as expireDate
+					from dr_product_invest dpi
+					LEFT JOIN dr_product_info p on p.id=dpi.pid
+					where  p.type !=1  and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')  <![CDATA[>= ]]> #{startDate}
+					and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')  <![CDATA[ <=]]>    #{endDate}
+					and  p.status != 2
+					group by  DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')
+			) as b
+			group by b.expireDate
+			order by b.expireDate asc
+			<if test="limit !=null">
+				limit #{offset},#{limit}
+			</if>
+		) as a
+	</select>
+	<select id="productRepaymentTotalForThisTotal" parameterType="java.util.Map" resultType="java.util.HashMap">
+		SELECT sum(a.interestTotal) as interestTotal ,sum(a.repaymentTotal) as repaymentTotal ,
+			(sum(a.repaymentTotal)+sum(a.interestTotal)) as total ,'总计' as statisticdDate
+		from (	
+			select sum(b.interestTotal) interestTotal,sum(b.repaymentTotal) repaymentTotal ,sum(b.total) total,b.expireDate  
+			from (
+				select sum(dpi.factInterest) as interestTotal,sum(dpi.factamount) as repaymentTotal ,
+					(sum(dpi.factamount)+sum(dpi.factInterest)) as total ,DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d') as expireDate
+					from dr_product_invest dpi
+					LEFT JOIN dr_product_info p on p.id=dpi.pid
+					where  p.type !=1  and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')   <![CDATA[>= ]]> #{startDate}
+					and DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')   <![CDATA[ <=]]>    #{endDate}
+					and  p.status != 2
+					group by  DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')
+				
+			) as b
+			group by b.expireDate
+			order by b.expireDate asc
+		) as a
+	</select>
+	
+	<!-- 折线图关联项目列表 -->
+	 <select id="getProductForStatistics" parameterType="java.util.Map" resultType="java.util.HashMap">
+		SELECT p.id, p.simpleName as simpleName,p.rate as rate,p.activityRate as activityRate,p.deadline as deadline,
+		sum(dpi.amount)  as amount ,sum(dpi.factInterest) as factInterest,
+		sum(dmf.profitAmount)  as activityAmount,p.startDate,p.fullDate 
+		from  dr_product_info p 
+		LEFT JOIN dr_product_invest dpi on dpi.pid=p.id
+		LEFT JOIN dr_member_favourable dmf on dmf.id=dpi.fid
+		where DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')=#{statisticsDate}
+		and p.id is not null
+		and  p.status != 2
+		<if test="simpleName != null and simpleName != ''">
+			and simpleName = #{simpleName}
+		</if>
+		<if test="dateStart != null and dateStart != ''">
+			and p.startDate <![CDATA[>= ]]> #{dateStart}
+		</if>
+		<if test="dateEnd != null and dateEnd != ''">
+			and p.startDate <![CDATA[ <=]]> #{dateEnd}
+		</if>
+		<if test="searchEndDate != null and searchEndDate != ''">
+			and p.fullDate <![CDATA[ <=]]> #{searchEndDate}
+		</if>
+		<if test="searchStartDate != null and searchStartDate != ''">
+			and p.fullDate <![CDATA[>= ]]> #{searchStartDate}
+		</if>
+		GROUP BY p.id
+		ORDER BY p.id ASC
+		<if test="limit !=null">
+			limit #{offset},#{limit}
+		</if>
+	</select>
+	
+	<select id="getProductForStatisticsCount" parameterType="java.util.Map" resultType="java.lang.Integer">
+		SELECT count(DISTINCT p.id)
+		from dr_product_info p 
+		LEFT JOIN dr_product_invest dpi on dpi.pid=p.id
+		LEFT JOIN dr_member_favourable dmf on dmf.id=dpi.fid
+		where DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')=#{statisticsDate}
+		and p.id is not null
+		and  p.status != 2
+		<if test="simpleName != null and simpleName != ''">
+			and simpleName = #{simpleName}
+		</if>
+		<if test="dateStart != null and dateStart != ''">
+			and p.startDate <![CDATA[>= ]]> #{dateStart}
+		</if>
+		<if test="dateEnd != null and dateEnd != ''">
+			and p.startDate <![CDATA[ <=]]> #{dateEnd}
+		</if>
+		<if test="searchEndDate != null and searchEndDate != ''">
+			and p.fullDate <![CDATA[ <=]]> #{searchEndDate}
+		</if>
+		<if test="searchStartDate != null and searchStartDate != ''">
+			and p.fullDate <![CDATA[>= ]]> #{searchStartDate}
+		</if>
+	</select> 
+	
+	<select id="getProductForStatisticsFooterPage" parameterType="java.util.Map" resultType="java.util.HashMap">
+		select  sum(a.amount) as amount,sum(a.factInterest) as factInterest, sum(a.activityAmount) as activityAmount, '本页统计' as  rate 
+		from (SELECT 
+		sum(dpi.amount)   as amount ,sum(dpi.factInterest) as factInterest,
+		sum(dmf.profitAmount)  as activityAmount
+		from  dr_product_info p 
+		LEFT JOIN dr_product_invest dpi on dpi.pid=p.id
+		LEFT JOIN dr_member_favourable dmf on dmf.id=dpi.fid
+		where DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')=#{statisticsDate}
+		and p.id is not null
+		and  p.status != 2
+		<if test="simpleName != null and simpleName != ''">
+			and simpleName = #{simpleName}
+		</if>
+		<if test="dateStart != null and dateStart != ''">
+			and p.startDate <![CDATA[>= ]]> #{dateStart}
+		</if>
+		<if test="dateEnd != null and dateEnd != ''">
+			and p.startDate <![CDATA[ <=]]> #{dateEnd}
+		</if>
+		<if test="searchEndDate != null and searchEndDate != ''">
+			and p.fullDate <![CDATA[ <=]]> #{searchEndDate}
+		</if>
+		<if test="searchStartDate != null and searchStartDate != ''">
+			and p.fullDate <![CDATA[>= ]]> #{searchStartDate}
+		</if>
+		GROUP BY p.id
+		ORDER BY p.id ASC
+		<if test="limit !=null">
+			limit #{offset},#{limit}
+		</if>
+		) as a
+	</select>
+	
+	<select id="getProductForStatisticsFooterTotal" parameterType="java.util.Map" resultType="java.util.HashMap">
+		select  sum(a.amount) as amount,sum(a.factInterest) as factInterest, sum(a.activityAmount) as activityAmount, '总计' as  rate 
+		from (SELECT 
+		sum(dpi.amount)  as amount ,sum(dpi.factInterest) as factInterest,
+		sum(dmf.profitAmount)  as activityAmount,'总计' as rate
+		from  dr_product_info p 
+		LEFT JOIN dr_product_invest dpi on dpi.pid=p.id
+		LEFT JOIN dr_member_favourable dmf on dmf.id=dpi.fid
+		where DATE_FORMAT(date_sub(p.expireDate,interval 1 day), '%Y-%m-%d')=#{statisticsDate}
+		and p.id is not null
+		and  p.status != 2
+		<if test="simpleName != null and simpleName != ''">
+			and simpleName = #{simpleName}
+		</if>
+		<if test="dateStart != null and dateStart != ''">
+			and p.startDate <![CDATA[>= ]]> #{dateStart}
+		</if>
+		<if test="dateEnd != null and dateEnd != ''">
+			and p.startDate <![CDATA[ <=]]> #{dateEnd}
+		</if>
+		<if test="searchEndDate != null and searchEndDate != ''">
+			and p.fullDate <![CDATA[ <=]]> #{searchEndDate}
+		</if>
+		<if test="searchStartDate != null and searchStartDate != ''">
+			and p.fullDate <![CDATA[>= ]]> #{searchStartDate}
+		</if>
+		GROUP BY p.id
+		) as a 
+	</select>
+	
+	
+</mapper>

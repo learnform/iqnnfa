@@ -1,0 +1,7 @@
+package cn.iqnnfa.model;
+
+import java.util.Date;
+
+public class head {
+ private Date txTime;
+}

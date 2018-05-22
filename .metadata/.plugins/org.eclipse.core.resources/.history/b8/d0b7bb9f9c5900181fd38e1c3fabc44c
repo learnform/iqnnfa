@@ -1,0 +1,63 @@
+package com.dr.service.activity.impl;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.alibaba.fastjson.JSON;
+import com.dr.common.Utils;
+import com.dr.dao.activity.DrActivityDAO;
+import com.dr.model.activity.DrActivity;
+import com.dr.service.activity.DrActivityService;
+
+@Service
+public class DrActivityServiceImpl implements DrActivityService {
+	
+	@Autowired
+	private DrActivityDAO drActivityDAO;
+	@Autowired
+	private DrProductInvestDAO drProductInvestDAO;
+	@Autowired
+	private RedisClientTemplate redisClientTemplate;
+
+	@Override
+	public DrActivity selectByPrimaryKey(Integer id) {
+		return drActivityDAO.selectByPrimaryKey(id);
+	}
+	@SuppressWarnings("unchecked")
+	@Override
+	public List<Map<String, Object>> selectInvestRanking(String startDate,String endDate) {
+		
+		String investRankinginfo =null;
+		List<Map<String,Object>> investRankingList = null;
+		int spacing;
+		//查询redis中是否有投资排行信息
+		investRankinginfo = redisClientTemplate.get("investRinkinginfo");
+		if(investRankinginfo == null){
+			//没有数据
+			investRankingList = drProductInvestDAO.selectInvestRanking(startDate, endDate);
+			Date date = new Date();
+			if((Utils.compare_date4(date,Utils.getPointMil(6,0,0,0)) == -1) && (Utils.compare_date4(date,Utils.getPointMil(0,0,0,0)) == 1)){//判断当前时间是否在12点到18点之间
+				//计算当前时间和18点的秒差值
+				spacing = (int)(Utils.getPointMil(6,0,0,0).getTime()-date.getTime())/1000;
+				redisClientTemplate.setex("investRinkinginfo", spacing, JSON.toJSONString(investRankingList));
+			}else if((Utils.compare_date4(date,Utils.getPointMil(11,59,59,59)) == -1) && (Utils.compare_date4(date,Utils.getPointMil(6,0,0,0)) == 1)){//在18点到0点之间
+				//计算当前时间和0点相差的秒值
+				spacing = (int)(Utils.getPointMil(11,59,59,59).getTime()-date.getTime())/1000 + 43200;
+				redisClientTemplate.setex("investRinkinginfo", spacing, JSON.toJSONString(investRankingList));
+			}else if((Utils.compare_date4(date,Utils.getPointMil(0,0,0,0)) == -1) && (Utils.compare_date4(date,Utils.getPointMil(-12,0,0,0)) == 1)){//在0点到12点之间
+				//计算当前时间和12点相差的秒值
+				spacing = (int)(Utils.getPointMil(11,59,59,59).getTime()-date.getTime())/1000;
+				redisClientTemplate.setex("investRinkinginfo", spacing, JSON.toJSONString(investRankingList));
+			}
+			return investRankingList;
+		}else{
+			//redis存在，直接读取
+			investRankingList = (List<Map<String, Object>>) JSON.parse(investRankinginfo);
+			return investRankingList;
+		}
+	}
+}

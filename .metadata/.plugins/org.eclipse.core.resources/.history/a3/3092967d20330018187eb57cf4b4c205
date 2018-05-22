@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dr.dao.cpa.DrChannelRewardPhonedataDao">
+  <resultMap id="BaseResultMap" type="com.dr.model.cpa.DrChannelRewardPhonedata">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="uid" jdbcType="INTEGER" property="uid" />
+    <result column="order_id" jdbcType="VARCHAR" property="orderId" />
+    <result column="phone" jdbcType="VARCHAR" property="phone" />
+    <result column="product_name" jdbcType="VARCHAR" property="productName" />
+    <result column="eff_type" jdbcType="CHAR" property="effType" />
+    <result column="reward_type" jdbcType="CHAR" property="rewardType" />
+    <result column="invest_id" jdbcType="INTEGER" property="investId" />
+    <result column="status" jdbcType="CHAR" property="status" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="process_time" jdbcType="TIMESTAMP" property="processTime" />
+    <result column="failure_reason" jdbcType="VARCHAR" property="failureReason" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    id, uid, order_id, phone, product_name, eff_type, reward_type, invest_id, status, 
+    create_time, process_time, failure_reason
+  </sql>
+  <insert id="insert" parameterType="com.dr.model.cpa.DrChannelRewardPhonedata">
+    insert into dr_channel_reward_phonedata (id, uid, order_id, 
+      phone, product_name, eff_type, 
+      reward_type, invest_id, status, 
+      create_time, process_time, failure_reason
+      )
+    values (#{id,jdbcType=INTEGER}, #{uid,jdbcType=INTEGER}, #{orderId,jdbcType=VARCHAR}, 
+      #{phone,jdbcType=VARCHAR}, #{productName,jdbcType=VARCHAR}, #{effType,jdbcType=CHAR}, 
+      #{rewardType,jdbcType=CHAR}, #{investId,jdbcType=INTEGER}, #{status,jdbcType=CHAR}, 
+      now(), now(), #{failureReason,jdbcType=VARCHAR}
+      )
+  </insert>
+
+  <select id="getDrChannelRewardPhonedata" parameterType="java.util.Map" resultType="com.dr.model.cpa.DrChannelRewardPhonedata">
+    SELECT *  FROM
+	dr_channel_reward_phonedata
+    WHERE
+        uid =#{uid}
+    AND reward_type =#{reward_type}
+  </select>
+
+</mapper>

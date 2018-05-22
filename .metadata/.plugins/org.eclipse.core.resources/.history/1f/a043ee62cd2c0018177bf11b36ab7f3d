@@ -1,0 +1,34 @@
+package cn.iqnnfa.service.impl;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import cn.iqnnfa.dao.IndexDAO;
+import cn.iqnnfa.model.DrMember;
+import cn.iqnnfa.service.IndexService;
+
+@Service("indexService")
+public class IndexServiceImpl implements IndexService{
+	
+	@Autowired
+	private IndexDAO indexDAO;
+	@Override
+	@Transactional
+	@Cacheable("drMember")
+	public DrMember findMemberByUid(Integer id) {
+		// TODO Auto-generated method stub
+		final Logger logger = LoggerFactory.getLogger(IndexServiceImpl.class);
+	    		 try {
+					DrMember drMember = indexDAO.findMemberByUid(id);
+					return drMember;
+				} catch (Exception e) {
+					logger.equals("插入失败");
+				}
+	    		 return null;
+	}
+
+}

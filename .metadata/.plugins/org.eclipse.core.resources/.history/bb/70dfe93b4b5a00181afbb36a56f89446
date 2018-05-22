@@ -1,0 +1,15 @@
+package cn.iqnnfa.configClass;
+
+import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
+
+import org.springframework.web.WebApplicationInitializer;
+
+public class WebApplicationInitializerDemo implements WebApplicationInitializer {
+
+	@Override
+	public void onStartup(ServletContext arg0) throws ServletException {
+		System.out.println("webApp初始化！！！");
+	}
+
+}

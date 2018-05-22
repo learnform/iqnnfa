@@ -1,0 +1,40 @@
+package cn.iqnnfa.model;
+
+public class BankCardInfo {
+	private String panNo;
+	private String mobilePhone;
+	private String cardType;
+	private Integer cvn2;
+	private Integer validDate;
+	public String getPanNo() {
+		return panNo;
+	}
+	public void setPanNo(String panNo) {
+		this.panNo = panNo;
+	}
+	public String getMobilePhone() {
+		return mobilePhone;
+	}
+	public void setMobilePhone(String mobilePhone) {
+		this.mobilePhone = mobilePhone;
+	}
+	public String getCardType() {
+		return cardType;
+	}
+	public void setCardType(String cardType) {
+		this.cardType = cardType;
+	}
+	public Integer getCvn2() {
+		return cvn2;
+	}
+	public void setCvn2(Integer cvn2) {
+		this.cvn2 = cvn2;
+	}
+	public Integer getValidDate() {
+		return validDate;
+	}
+	public void setValidDate(Integer validDate) {
+		this.validDate = validDate;
+	}
+	
+}

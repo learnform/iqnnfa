@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.dr.dao.member.DrMemberDAO">
+	<resultMap id="DrMemberResult" type="com.dr.model.member.DrMember">
+		<result column="uid" property="uid" jdbcType="INTEGER" />
+		<result column="password" property="passWord" jdbcType="CHAR" />
+		<result column="tpassword" property="tpassWord" jdbcType="CHAR" />
+		<result column="photo" property="photo" jdbcType="VARCHAR" />
+		<result column="isblack" property="isBlack" jdbcType="INTEGER" />
+		<result column="regip" property="regIp" jdbcType="CHAR" />
+		<result column="regdate" property="regDate" jdbcType="TIMESTAMP" />
+		<result column="lastloginip" property="lastLoginIp" jdbcType="CHAR" />
+		<result column="lastLoginTime" property="lastLoginTime"
+			jdbcType="TIMESTAMP" />
+		<result column="type" property="type" jdbcType="INTEGER" />
+		<result column="status" property="status" jdbcType="INTEGER" />
+		<result column="regfrom" property="regFrom" jdbcType="INTEGER" />
+		<result column="mobileverify" property="mobileVerify" jdbcType="INTEGER" />
+		<result column="realverify" property="realVerify" jdbcType="INTEGER" />
+		<result column="loginverify" property="loginVerify" jdbcType="INTEGER" />
+		<result column="emailverify" property="emailVerify" jdbcType="INTEGER" />
+		<result column="recommCodes" property="recommCodes" jdbcType="CHAR" />
+		<result column="mobilePhone" property="mobilephone" jdbcType="VARCHAR" />
+		<result column="email" property="email" jdbcType="VARCHAR" />
+		<result column="realname" property="realName" jdbcType="CHAR" />
+		<result column="idcards" property="idCards" jdbcType="VARCHAR" />
+		<result column="birthdate" property="birthDate" jdbcType="TIMESTAMP" />
+		<result column="balance" property="balance" jdbcType="DECIMAL" />
+		<result column="freeze" property="freeze" jdbcType="DECIMAL" />
+		<result column="crushcount" property="crushCount" jdbcType="DECIMAL" />
+		<result column="carrycount" property="carryCount" jdbcType="DECIMAL" />
+		<result column="investAmount" property="investAmount"
+			jdbcType="DECIMAL" />
+		<result column="toFrom" property="toFrom" jdbcType="VARCHAR" />
+		
+		<result column="sex" property="sex" jdbcType="INTEGER" />
+	</resultMap>
+	<select id="selectByPrimaryKey" resultMap="DrMemberResult"
+		parameterType="com.dr.model.member.DrMember">
+		select m.uid, m.password, m.tpassword, m.photo, m.isblack,m.toFrom,
+		m.regip, m.regdate, m.lastloginip, m.lastlogintime, m.type, m.status,
+		m.regfrom, m.mobileverify, m.realverify, m.loginverify, m.emailverify,
+		m.recommCodes,
+		m.mobilephone,b.email,b.realname,b.birthdate,b.idcards,b.sex
+		from dr_member m left join
+		dr_member_base_info b on m.uid=b.uid
+		where m.uid = #{uid:INTEGER}
+	</select>
+	
+	<select id="isExistsMobilphone" resultType="java.lang.Integer">
+		select count(1) from dr_member where mobilephone = #{mobilephone}
+	</select>
+
+	<insert id="insertDrMember" useGeneratedKeys="true" keyProperty="uid"
+		parameterType="com.dr.model.member.DrMember">
+		insert into dr_member (mobilephone, password, tpassword, isblack,
+		regdate,status, mobileverify, realverify, loginverify,
+		emailverify,level, recommCodes, toFrom)
+		values (#{mobilephone}, #{passWord:CHAR}, #{tpassWord:CHAR},
+		#{isBlack:INTEGER},
+		#{regDate:TIMESTAMP}, #{status:INTEGER},
+		#{mobileVerify:INTEGER}, #{realVerify:INTEGER},
+		#{loginVerify:INTEGER}, #{emailVerify:INTEGER},
+		#{level:INTEGER},#{recommCodes:VARCHAR},#{toFrom:VARCHAR})
+	</insert>
+      
+  <update id="updateByPrimaryKey" parameterType="com.dr.model.member.DrMember" >
+    update dr_member
+    <set>
+    	<if test="passWord != null"> password = #{passWord:CHAR},</if>
+    	<if test="tpassWord != null"> tpassword = #{tpassWord:CHAR},</if>
+    	<if test="photo != null"> photo = #{photo:CHAR},</if>
+    	<if test="isBlack != null"> isblack = #{isBlack:CHAR},</if>
+    	<if test="regIp != null"> regip = #{regIp:CHAR},</if>
+    	<if test="regDate != null"> regdate = #{regDate:TIMESTAMP},</if>
+    	<if test="lastLoginIp != null"> lastloginip = #{lastLoginIp:CHAR},</if>
+    	<if test="lastLoginTime != null"> lastLoginTime = #{lastLoginTime:TIMESTAMP},</if>
+    	<if test="type != null"> type = #{type:INTEGER},</if>
+    	<if test="userKy != null"> USER_KY = #{userKy:INTEGER},</if>
+    	<if test="status != null"> status = #{status:INTEGER},</if>
+    	<if test="regFrom != null"> regfrom = #{regFrom:INTEGER},</if>
+    	<if test="mobileVerify != null"> mobileverify = #{mobileVerify:INTEGER},</if>
+    	<if test="realVerify != null"> realverify = #{realVerify:INTEGER},</if>
+    	<if test="loginVerify != null"> loginverify = #{loginVerify:INTEGER},</if>
+    	<if test="emailVerify != null"> emailverify = #{emailVerify:INTEGER},</if>
+    	<if test="recommCodes != null"> recommCodes = #{recommCodes:CHAR},</if>
+    	<if test="level != null">  level = #{level:INTEGER},</if>
+    </set>
+    where uid = #{uid:INTEGER}
+  </update>
+  	<select id="selectDrMemberByMobilephone" resultMap="DrMemberResult" >
+		SELECT
+		m.uid,
+		m.PASSWORD,
+		m.tpassword,
+		m.photo,
+		m.STATUS,
+		m.toFrom,
+		m.regfrom,
+		m.mobileverify,
+		m.realverify,
+		m.loginverify,
+		m.emailverify,
+		m.recommCodes,
+		m.regdate,
+		m.mobilePhone,
+		b.email,
+		b.realname,
+		b.idcards,
+		b.birthdate,
+		b.sex,
+		CASE WHEN UNIX_TIMESTAMP( m.regdate ) * 1000 <![CDATA[ < ]]> #{releaseTime} THEN 1 ELSE 0  END AS "attribute"
+		FROM
+		dr_member m
+		LEFT JOIN dr_member_base_info b ON m.uid = b.uid
+		WHERE
+		m.mobilephone = #{mobilephone}
+	</select>
+
+	<select id="selectDrMemberByMobileOrRecomm" resultType="com.dr.model.member.DrMember" parameterType="java.lang.String">
+		select * from dr_member where mobilephone = #{str} or recommCodes = #{str}
+	</select>
+	
+	<select id="selectMemberIsJoinActivity" resultType="com.dr.model.member.DrMember">
+		select tofrom from dr_member m
+ 		where uid=#{uid} and exists (select `code` from dr_channel_info where isParticipation=0 and INSTR(toFrom,code)=1 )
+	</select>
+	
+	<select id="selectIndexSummaryData" resultType="java.util.HashMap">
+		SELECT
+		( SELECT count( uid ) FROM dr_member ) AS regCount,
+		( SELECT sum( amount ) FROM dr_product_invest ) AS investCumulative,
+		( SELECT sum( factInterest ) FROM dr_product_invest ) AS profitCumulative
+	</select>
+
+	<select id="queryMemberVoucherCount" resultType="java.util.HashMap">
+		SELECT
+		( SELECT count( 1 ) FROM dr_member_favourable WHERE uid = #{uid} AND type = 1 AND STATUS = 0 LIMIT 1 ) "envelopes",
+		( SELECT count( 1 ) FROM dr_member_favourable WHERE uid = #{uid} AND type = 2 AND STATUS = 0 LIMIT 1 ) "voucher"
+	</select>
+
+	<select id="queryOperationData" resultType="java.util.HashMap">
+		SELECT
+		( SELECT COUNT( uid ) FROM dr_member ) AS "registeredCount",
+		( SELECT SUM( amount ) FROM dr_product_invest ) AS "investAmount",
+		( SELECT COUNT( DISTINCT uid ) FROM dr_product_invest ) AS "borrowerCount",
+		( SELECT COUNT( 1 ) FROM dr_product_invest ) AS "flowingWaterCount",
+		( SELECT SUM( amount ) FROM dr_product_invest WHERE investTime <![CDATA[ >= ]]> DATE_ADD(#{date}, INTERVAL - 2 DAY)
+			AND investTime <![CDATA[ < ]]> DATE_ADD(#{date}, INTERVAL - 1 DAY)  ) AS "yesterDayFlowingWater",
+		( SELECT SUM( amount ) FROM dr_product_invest WHERE investTime <![CDATA[ >= ]]> DATE_ADD(#{date}, INTERVAL - 1 DAY)
+			AND investTime <![CDATA[ < ]]> #{date}) AS "toDayFlowingWater",
+		( SELECT COUNT( DISTINCT certificateNo ) FROM dr_claims_customer  ) AS "lenderCount"
+	</select>
+
+</mapper>

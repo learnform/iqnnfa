@@ -1,0 +1,17 @@
+package com.dr.service.member.impl;
+
+import org.springframework.stereotype.Service;
+
+import com.dr.model.cpa.DrChannelRewardPhonedata;
+import com.dr.service.member.DrChannelRewardPhonedataService;
+
+@Service("drChannelRewardPhonedataService")
+public class DrChannelRewardPhonedataServuceImpl implements DrChannelRewardPhonedataService {
+	
+	@Override
+	public void AddDrChannelRewardPhonedata(DrChannelRewardPhonedata drChannelRewardPhonedata) {
+		// TODO Auto-generated method stub
+
+	}
+
+}

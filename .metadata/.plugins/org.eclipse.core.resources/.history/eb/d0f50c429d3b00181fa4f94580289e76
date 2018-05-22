@@ -1,0 +1,22 @@
+package com.thirdparty.wps;
+
+import com.sun.istack.internal.Nullable;
+
+/**
+ * @author 李小双 2018.3.26
+ * WPS 接口.
+ */
+public interface WpsApiObject {
+
+    /**
+     * 回调WPS 奖励
+     *
+     * @param userId 用户Id
+     * @param extra  额外参数
+     * @param type   类型
+     * @param phone  手机号
+     * @return 是否成功
+     */
+    @Nullable
+    boolean callbackReward(final String userId, final String extra, final String type, final String phone);
+}

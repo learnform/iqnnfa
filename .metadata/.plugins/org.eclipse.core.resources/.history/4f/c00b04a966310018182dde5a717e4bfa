@@ -1,0 +1,22 @@
+package cn.iqnnfa.model;
+
+public class AnXinSignRequest {
+	//签约的个人用户uid
+	private Integer uid;
+	//安心签个人用户名
+	private String personName;
+	//证件类型编码
+	private Integer identTypeCode;
+	//证件号码
+	private Integer identNo;
+	//用户的邮箱
+	private String email;
+	//用户的手机号
+	private String mobilePhone;
+	//用户的地址
+	private String address;
+	//认证方式
+	private Integer authenticationMode;
+	//是否发送密码短信 0：发送；1：不发送；默认为0
+	private Integer notSendPwd;
+}

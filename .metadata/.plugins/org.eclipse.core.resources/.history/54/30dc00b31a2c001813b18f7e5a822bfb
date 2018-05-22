@@ -1,0 +1,12 @@
+package cn.iqnnfa.dao;
+
+import java.io.Serializable;
+
+import org.apache.ibatis.annotations.Param;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import cn.iqnnfa.model.DrMember;
+
+public interface IndexDAO extends JpaRepository<DrMember, Serializable>{
+	//public DrMember findMemberByUid(@Param("id")Integer id);
+}

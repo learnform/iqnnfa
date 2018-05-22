@@ -1,0 +1,12 @@
+package com.dr.dao.activity;
+
+import java.util.List;
+import java.util.Map;
+
+import org.apache.ibatis.annotations.Param;
+
+public interface BusinessReceiveRecorDAO {
+	
+	List<Map<String,Object>> findBusinessReceiveRecordByUid(@Param("uid") Integer uid);
+ 
+}

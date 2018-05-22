@@ -1,0 +1,258 @@
+package com.dr.controller;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.dr.common.BaseResult;
+import com.dr.common.Utils;
+import com.dr.model.claims.DrClaimsBill;
+import com.dr.model.claims.DrClaimsLoan;
+import com.dr.model.member.DrMember;
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductInvest;
+import com.dr.service.claims.DrClaimsBillService;
+import com.dr.service.claims.DrClaimsLoanService;
+import com.dr.service.member.DrMemberService;
+import com.dr.service.product.DrProductInfoService;
+import com.dr.service.product.DrProductInvestService;
+import com.dr.service.product.DrProductInvestTransferService;
+
+@SuppressWarnings("unused")
+@Controller
+@RequestMapping("/agreement")
+public class AgreementController {
+	private Logger log = Logger.getLogger(this.getClass());
+	
+	@Autowired
+	private DrMemberService drMemberService;
+	@Autowired
+	private DrProductInfoService drProductInfoService;
+	@Autowired
+	private DrProductInvestService drProductInvestService;
+	@Autowired
+	private DrProductInvestTransferService drProductInvestTransferService;
+	@Autowired
+	private DrClaimsBillService drClaimsBillService;
+	@Autowired
+	private DrClaimsLoanService drClaimsLoanService;
+	
+	/**
+	 * 投资协议
+	 * @param req
+	 * @param map
+	 * @return
+	 */
+	@RequestMapping(value="product",method = RequestMethod.POST)
+	@ResponseBody
+	public String productAgreement(HttpServletRequest req,  Integer pid,Integer uid, Integer investId){
+		BaseResult br = new BaseResult();
+		try {
+//			JSONObject parseObject = JSON.parseObject(param);
+//			Integer pid = Integer.parseInt(parseObject.getString("pid"));
+//			Integer uid = Integer.parseInt(parseObject.getString("uid"));
+//			Integer investId = Integer.parseInt(parseObject.getString("investId"));
+			if(investId == null){
+				br.setSuccess(true);
+				return JSON.toJSONString(br);
+			}
+//			map.clear();
+			Map<String, String> map = new HashMap<String, String>();
+			//转让人
+			map.put("intermediary", "");
+			map.put("intermediaryCard", "");
+			
+			//投资人信息
+			DrProductInvest invest = drProductInvestService.selectByPrimaryKey(investId);
+			if(Utils.isObjectEmpty(invest) || !invest.getPid().equals(pid) || !invest.getUid().equals(uid)){
+				br.setSuccess(true);
+				return JSON.toJSONString(br);
+			}
+			DrMember m = drMemberService.selectByPrimaryKey(uid);
+			DrProductInfo info = drProductInfoService.selectProductByPrimaryKey(pid);
+			
+			map.put("realName", m.getRealName());
+			map.put("idCard", m.getIdCards());
+			map.put("mobilephone", m.getMobilephone());
+			map.put("investAmount", invest.getFactAmount().toString());
+			map.put("rate", info.getRate().toString());
+			map.put("productName", info.getFullName());
+			map.put("deadline", info.getDeadline().toString());
+			if(info.getType() == 1 || info.getType() == 4){
+				map.put("date", Utils.getDayNumOfAppointDate(invest.getInvestTime(), -1, "yyyy年MM月dd日") );
+			}else{
+				map.put("date", Utils.getDayNumOfAppointDate(info.getExpireDate(), info.getDeadline(), "yyyy年MM月dd日") );
+			}
+			map.put("investTime", Utils.format(invest.getInvestTime(), "yyyy年MM月dd日"));
+			map.put("agreementNo", invest.getAgreementNo());
+			br.setMap(map);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			log.error("协议信息读取失败", e);
+			br.setSuccess(false);
+			br.setErrorCode("9999");
+		}
+		return JSON.toJSONString(br);
+	}
+	
+	/**
+	 * 借款协议
+	 * @param req
+	 * @param map
+	 * @return
+	 */
+	@RequestMapping(value="borrow",method = RequestMethod.POST)
+	@ResponseBody
+	public String borrowAgreement(HttpServletRequest req, Integer pid,Integer uid, Integer investId){
+		BaseResult br = new BaseResult();
+		try {
+//			Integer pid = Integer.parseInt(map.get("pid"));
+//			Integer uid = Integer.parseInt(map.get("uid"));
+//			Integer investId = Integer.parseInt(map.get("investId"));
+			if(investId == null){
+				br.setSuccess(true);
+				return JSON.toJSONString(br);
+			}
+			
+			DrProductInvest invest = drProductInvestService.selectByPrimaryKey(investId);//投资信息
+			if(Utils.isObjectEmpty(invest) || !invest.getPid().equals(pid) || !invest.getUid().equals(uid)){
+				br.setSuccess(true);
+				return JSON.toJSONString(br);
+			}
+			DrMember m = drMemberService.selectByPrimaryKey(uid);
+			DrProductInfo info = drProductInfoService.selectProductByPrimaryKey(pid);//产品信息
+			DrClaimsBill bill = drClaimsBillService.getDrClaimsBillBySid(info.getSid());//票据信息
+			DrClaimsLoan loan = drClaimsLoanService.selectByPrimaryKey(bill.getLid());//债权信息
+			
+			Map<String, String> map = new HashMap<String, String>();
+			map.put("investName", m.getRealName());//甲方出借人
+			map.put("agreementNo", invest.getAgreementNo());//协议号
+			map.put("mobilephone", m.getMobilephone());//探禄会员
+			String borrowName = "";
+			String businessNum = "";
+			String strBorrowName = loan.getCompanyName();
+			if(StringUtils.isNotBlank(strBorrowName)){
+				borrowName = strBorrowName.substring(0,1s)+"****"+strBorrowName.substring(strBorrowName.length()- 1);
+			}
+			String strBusinessNum =  loan.getBusinessNo();
+			if(StringUtils.isNotBlank(strBusinessNum)){
+				businessNum = strBusinessNum.substring(0,4)+"****"+strBusinessNum.substring(strBusinessNum.length()- 3);
+			}
+			
+			map.put("borrowName", borrowName);//借款人姓名
+			map.put("businessNum", businessNum);//营业执照号码
+			map.put("borrowAgreementNum", loan.getNo());//项目编号
+			map.put("borrowUse", loan.getLoanUse());//借款用途
+			map.put("loanName", loan.getLoanName());//账户名称
+			map.put("bankName", loan.getBankName());//保理商银行账户开户行
+			map.put("amount", invest.getFactAmount().toString());//借款本金
+			map.put("rate", info.getRate().toString());//利率
+			map.put("beginDate", Utils.format(info.getEstablish(), "yyyy年MM月dd日"));//开始期限
+			map.put("endDate_1", Utils.format(Utils.getDayNumOfAppointDate(info.getExpireDate(), 1), "yyyy年MM月dd日"));//借款人最迟还款日
+			map.put("endDate", Utils.format(info.getExpireDate(), "yyyy年MM月dd日"));//结束期限
+			map.put("billType", bill.getType()==1?"商业承兑汇票兑付款":"银行承兑汇票兑付款");//还款来源
+			map.put("billNum", bill.getNumber());//票号
+			map.put("billAmount", bill.getAmount() == null ? "" :bill.getAmount().toString());//票面金额
+			map.put("billCompany", bill.getAcceptor());//出票机构
+			map.put("billEndDate", bill.getEndDate() == null ? "":Utils.format(bill.getEndDate(), "yyyy年MM月dd日"));//票据到期日
+			
+			map.put("infoAmount",info.getAmount().toString());//资产总额
+			map.put("fullName",info.getFullName());//产品全称
+			/*map.put("investName", m.getRealName());//甲方出借人
+			map.put("agreementNo", invest.getAgreementNo());//协议号
+			map.put("mobilephone", m.getMobilephone());//探禄会员
+			map.put("idCard",m.getIdCards().substring(0, 7)+"********"+m.getIdCards().substring(14));//身份号
+			map.put("borrowName", loan.getCompanyName());//借款人姓名
+			map.put("businessNum", loan.getBusinessNo());//营业执照号码
+			map.put("code", info.getCode());//产品/项目编号
+			map.put("deadline", info.getDeadline().toString());//产品期限
+			map.put("investTime", Utils.format(invest.getInvestTime(), "yyyy年MM月dd日"));//购买日期
+			map.put("factAmount", invest.getFactAmount().toString());//购买金额
+			map.put("rate", info.getRate().toString());//预期年化利率
+			map.put("factInterest", invest.getInterest().toString());//预期利息
+			map.put("expectedBX", invest.getFactAmount().add(invest.getInterest()).toString());//预期代收本息
+			map.put("endDate", Utils.format(info.getExpireDate(), "yyyy年MM月dd日"));//回款日期
+			map.put("shouldInterest",invest.getInterest().toString());//应收利息
+			map.put("shouldTotal",invest.getFactAmount().add(invest.getInterest()).toString());//应收总额
+			map.put("remain",invest.getFactAmount().toString());//剩余本金
+*/			
+			br.setMap(map);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			log.error("借款信息读取失败", e);
+			br.setSuccess(false);
+			br.setErrorCode("9999");
+		}
+		return JSON.toJSONString(br);
+	}
+	
+	/**
+	 * 债权转让协议
+	 * @param req
+	 * @param map
+	 * @return
+	 */
+	@RequestMapping(value="transfer",method = RequestMethod.POST)
+	@ResponseBody
+	public String transferAgreement(HttpServletRequest req, Integer pid,Integer uid, Integer investId){
+		BaseResult br = new BaseResult();
+		try {
+//			Integer pid = Integer.parseInt(map.get("pid"));
+//			Integer uid = Integer.parseInt(map.get("uid"));
+//			Integer investId = Integer.parseInt(map.get("investId"));
+			if(investId == null){
+				br.setSuccess(true);
+				return JSON.toJSONString(br);
+			}
+			
+			DrProductInvest invest = drProductInvestService.selectByPrimaryKey(investId);//投资信息
+			if(Utils.isObjectEmpty(invest) || !invest.getPid().equals(pid) || !invest.getUid().equals(uid)){
+				br.setSuccess(true);
+				return JSON.toJSONString(br);
+			}
+			DrMember m = drMemberService.selectByPrimaryKey(uid);
+			DrProductInfo info = drProductInfoService.selectProductByPrimaryKey(pid);//产品信息
+			DrClaimsBill bill = drClaimsBillService.getDrClaimsBillBySid(info.getSid());//票据信息
+			
+			Map<String, Object> mp = new HashMap<String, Object>();
+			mp.put("agreementNo", invest.getAgreementNo());
+			mp.put("investName", m.getRealName());
+			mp.put("idCard", m.getIdCards());
+			mp.put("userName", m.getMobilephone());
+			mp.put("acceptor", bill==null?"":bill.getAcceptor());
+			mp.put("investName_1", m.getRealName());
+			mp.put("investAmount", invest.getFactAmount().toString());
+			mp.put("loanForceDate", Utils.format(info.getEstablish(), "yyyy年MM月dd日"));
+			mp.put("loanExpireDate", Utils.format(info.getExpireDate(), "yyyy年MM月dd日"));
+			mp.put("productExpireDate", Utils.format(Utils.getDayNumOfAppointDate(info.getExpireDate(), 1), "yyyy年MM月dd日"));
+			mp.put("productRepaymentDate", Utils.format(info.getExpireDate(), "yyyy年MM月dd日"));
+			mp.put("rate", info.getRate().toString());
+			mp.put("activityRate", info.getActivityRate().toString());
+			mp.put("transferList", drProductInvestTransferService.selectTransferInfoByAssigneeUid(info.getId(), m.getUid(),invest.getId()));
+			mp.put("realName", m.getRealName());
+			mp.put("amount", invest.getAmount());
+//			mp.put("loanExpireDate", info.getExpireDate());
+			br.setMap(mp);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			log.error("债权转让信息读取失败", e);
+			br.setSuccess(false);
+			br.setErrorCode("9999");
+		}
+		return JSON.toJSONString(br);
+	}
+
+
+}

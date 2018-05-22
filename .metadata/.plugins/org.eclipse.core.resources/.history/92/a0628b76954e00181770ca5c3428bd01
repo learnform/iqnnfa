@@ -1,0 +1,1318 @@
+package com.dr.controller.product;
+
+import com.alibaba.fastjson.JSONObject;
+import com.dr.common.*;
+import com.dr.model.claims.DrAuditInfo;
+import com.dr.model.claims.DrClaimsBill;
+import com.dr.model.claims.DrClaimsPic;
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductInvestRepayInfo;
+import com.dr.model.subject.DrSubjectInfo;
+import com.dr.model.system.SysUsersVo;
+import com.dr.service.claims.DrClaimsInfoService;
+import com.dr.service.product.DrProductInfoService;
+import com.dr.service.product.DrProductQuartzLogService;
+import com.dr.service.subject.DrSubjectInfoService;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.propertyeditors.CustomDateEditor;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.InitBinder;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.ModelAndView;
+
+import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@Controller
+@RequestMapping("/product")
+public class DrProductInfoController{
+	private Logger log = Logger.getLogger(this.getClass().getName());
+	@Autowired
+	private DrProductInfoService drProductInfoService;
+	@Autowired
+	private DrSubjectInfoService drSubjectInfoService;
+	@Autowired
+	private DrClaimsInfoService drClaimsInfoService;
+	@Autowired
+	private DrProductQuartzLogService drProductQuartzLogService;
+	
+	/**
+	 * 跳转到产品列表页面
+	 */
+	@RequestMapping("/toDrProductInfoList")
+	public String toDrProductInfoList(Map<String,Object> model) {
+		try {
+			model.put("status", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productStatus")));
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productType")));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/drProductInfoList";
+	}
+	
+	/**
+	 * 跳转到产品审核列表页面
+	 */
+	@RequestMapping("/toAuditDrProductInfoList")
+	public String toAuditDrProductInfoList(Map<String,Object> model) {
+		try {
+			model.put("status", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productStatus")));
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productType")));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/auditDrProductInfoList";
+	}
+	
+	/**
+	 * 跳转到投资池
+	 * @param model
+	 * @return
+	 */
+	@RequestMapping("/toInvestmentPoolList")
+	public String toInvestmentPoolList(Map<String,Object> model){
+		return "system/product/investmentPoolList";
+	}
+	
+	@RequestMapping("/investmentPoolList")
+	@ResponseBody
+	public PageInfo investmentPoolList(DrProductInfo drProductInfo,Integer page,Integer rows){
+		if(page == null){
+			page = PageInfo.DEFAULT_PAGE_ON;
+		}
+		if(rows == null){
+			rows = PageInfo.CRM_DEFAULT_PAGE_SIZE;
+		}
+		PageInfo pi = new PageInfo(page,rows);
+		BaseResult result = drProductInfoService.getInvestmentPoolList(drProductInfo, pi);
+		return (PageInfo)result.getMap().get("page");
+	}
+	
+	/**
+	 * 显示产品列表数据
+	 * @param DrProductInfo
+	 * @param page
+	 * @param rows
+	 * @return
+	 */
+	@RequestMapping(value= "/drProductInfoList")
+	@ResponseBody
+	public PageInfo drProductInfoList(DrProductInfo drProductInfo,Integer page,Integer rows) {
+		
+		if(page == null){
+			page = PageInfo.DEFAULT_PAGE_ON;
+		}
+		if(rows == null){
+			rows = PageInfo.CRM_DEFAULT_PAGE_SIZE;
+		}
+		PageInfo pi = new PageInfo(page,rows);
+		BaseResult result = drProductInfoService.getDrProductInfoList(drProductInfo, pi);
+		return (PageInfo)result.getMap().get("page");
+	}
+	
+	/**
+	 * 显示产品审核列表数据
+	 * @param DrProductInfo
+	 * @param page
+	 * @param rows
+	 * @return
+	 */
+	@RequestMapping(value= "/auditDrProductInfoList")
+	@ResponseBody
+	public PageInfo auditDrProductInfoList(DrProductInfo drProductInfo,Integer page,Integer rows) {
+		if(page == null){
+			page = PageInfo.DEFAULT_PAGE_ON;
+		}
+		if(rows == null){
+			rows = PageInfo.CRM_DEFAULT_PAGE_SIZE;
+		}
+		PageInfo pi = new PageInfo(page,rows);
+		if(drProductInfo.getStatus() == null){
+			drProductInfo.setStatus(100);
+		}
+		BaseResult result = drProductInfoService.getDrProductInfoList(drProductInfo, pi);
+		return (PageInfo)result.getMap().get("page");
+	}
+	
+	/**
+	 * 跳转到产品新增页面
+	 */
+	@RequestMapping("/toAddDrProductInfo")
+	public String toAddDrProductInfo(Map<String,Object> model,HttpServletRequest request) {
+		try {
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productType")));
+			model.put("repayType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("repayType")));
+			model.put("intermediary", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("intermediary")));
+			model.put("productCode", Utils.createOrderNo(4, usersVo.getUserKy().intValue(), "CP-"));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/addDrProductInfo";
+	}
+	
+	/**
+	 * 得到债权图片数据
+	 * @param id 标的ID
+	 * @return
+	 */
+	@RequestMapping(value= "/getClaimsPicInfo")
+	@ResponseBody
+	public List<DrClaimsPic> getClaimsPicInfo(Integer id) {
+		List<DrClaimsPic> drClaimsPic = new ArrayList<DrClaimsPic>();
+		if(Utils.isObjectNotEmpty(id)){
+			DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(id);
+			drClaimsPic = drClaimsInfoService.getDrClaimsPicByLid(drSubjectInfo.getLid());
+		}
+		return drClaimsPic;
+	}
+	
+	/**
+	 * 得到标的数据
+	 * @param id 标的ID
+	 * @return
+	 */
+	@RequestMapping(value= "/getDrSubjectInfo")
+	@ResponseBody
+	public List<DrSubjectInfo> getDrSubjectInfo(Integer type,Integer id) {
+		DrSubjectInfo subjectInfo = null;
+		if(Utils.isObjectNotEmpty(id)){
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			if(drProductInfo.getType() != 1 && drProductInfo.getSid() != null){
+				subjectInfo = drSubjectInfoService.getDrSubjectInfoByid(drProductInfo.getSid());
+				subjectInfo.setSurplusAmount(subjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)));
+				subjectInfo.setAmount(subjectInfo.getAmount().multiply(new BigDecimal(10000)));
+			}
+		}
+		
+		Map<String,Object> map = new HashMap<String, Object>();
+		if(Utils.isObjectNotEmpty(type)){
+			if(2 == type){
+				map.put("type", 3);
+			}
+		}
+		map.put("status", new int[]{1,2});
+		map.put("surplusAmount", 0);
+		List<DrSubjectInfo> drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByMap(map);
+		if(Utils.isObjectNotEmpty(subjectInfo)){
+			if(subjectInfo.getSurplusAmount().compareTo(new BigDecimal(0)) == 0){
+				drSubjectInfo.add(subjectInfo);
+			}
+		}
+		return drSubjectInfo;
+	}
+	
+	/**
+	 * 得到标的数据
+	 * @param id 标的ID
+	 * @return
+	 */
+	@RequestMapping(value= "/getDrClaimsBill")
+	@ResponseBody
+	public DrClaimsBill getDrClaimsBill(Integer type,Integer id) {
+		DrClaimsBill drClaimsBill = null;
+		if(Utils.isObjectNotEmpty(id)){
+			DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(id);
+			drClaimsBill = drClaimsInfoService.getDrClaimsBillByLid(drSubjectInfo.getLid());
+		}
+		return drClaimsBill;
+	}
+	
+	/**
+	 * 添加产品信息
+	 * @param req
+	 * @param DrCarryParameter
+	 * @param name
+	 * @param claimsFiles
+	 * @return
+	 */
+	@RequestMapping(value="/addDrProductInfo",produces = "text/html; charset=utf-8")
+	@ResponseBody
+	public String addDrProductInfo(DrProductInfo drProductInfo,HttpServletRequest request,
+			@RequestParam MultipartFile[] productFiles,MultipartFile acceptPicFile){
+		BaseResult br = new BaseResult();
+		SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+		try {
+			log.info("产品添加开始");
+			String reg = ".+(.JPEG|.jpeg|.JPG|.jpg|.GIF|.gif|.BMP|.bmp|.PNG|.png)$";
+			Pattern pattern = Pattern.compile(reg);
+			for(int i=0;i<productFiles.length;i++){
+				Matcher matcher = pattern.matcher(productFiles[i].getOriginalFilename().toLowerCase());
+				if(!matcher.find()){
+					br.setSuccess(false);
+					br.setMsg("请上传正确的图片格式!");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+				
+				long fileSize = productFiles[i].getSize();
+				if(fileSize>1024*5000){
+					br.setSuccess(false);
+					br.setMsg("图片不能大于5M！");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+			}
+			if(Utils.isObjectNotEmpty(acceptPicFile)){
+				Matcher matcher = pattern.matcher(acceptPicFile.getOriginalFilename().toLowerCase());
+				if(!matcher.find()){
+					br.setSuccess(false);
+					br.setMsg("请上传正确承兑图片的格式!");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+				
+				long fileSize = acceptPicFile.getSize();
+				if(fileSize>1024*5000){
+					br.setSuccess(false);
+					br.setMsg("承兑图片不能大于5M！");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+			}
+			
+			drProductInfo.setAddUser(usersVo.getUserKy().intValue());
+			drProductInfo.setStatus(1);
+			br = drProductInfoService.insertDrProductInfo(drProductInfo,productFiles,acceptPicFile);
+		} catch (Exception e) {
+			log.error("添加产品失败："+e);
+			br.setErrorMsg("添加失败!");
+			br.setSuccess(false);
+		}
+		log.info("产品添加结束");
+		JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+		return jsonObject.toString();
+	}
+	
+	/**
+	 * 跳转到标的详情页面
+	 */
+	@RequestMapping("/showDrSubjectInfo")
+	public String showDrSubjectInfo(Map<String,Object> model,Integer id) {
+		try {
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("billType")));
+			model.put("repayType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("repayType")));
+			model.put("dateType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("dateType")));
+			
+			DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(id);
+			model.put("drSubjectInfo", drSubjectInfo);
+			
+			if(Utils.isObjectNotEmpty(drSubjectInfo.getStartDate())){
+				model.put("subjectStartDate", Utils.getparseDate(drSubjectInfo.getStartDate(),"yyyy-MM-dd HH:mm:ss"));
+			}
+			if(Utils.isObjectNotEmpty(drSubjectInfo.getEndDate())){
+				model.put("subjectEndDate", Utils.getparseDate(drSubjectInfo.getEndDate(),"yyyy-MM-dd HH:mm:ss"));
+			}
+			model.put("drClaimsPic",  drClaimsInfoService.getDrClaimsPicByLid(drSubjectInfo.getLid()));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/showDrSubjectInfo";
+	}
+	
+	/**
+	 * 验证产品金额
+	 * @param amount
+	 * @param sid
+	 * @return BaseResult
+	 */
+	@RequestMapping(value= "/validatorProductAmount")
+	@ResponseBody
+	public BaseResult validatorProductAmount(BigDecimal amount,Integer sid) {
+		BaseResult br = new BaseResult();
+		try{
+			DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(sid);
+			if(amount.compareTo(drSubjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)))>0){
+				br.setSuccess(false);
+			}else{
+				br.setSuccess(true);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 验证修改产品金额
+	 * @param amount
+	 * @param sid
+	 * @return BaseResult
+	 */
+	@RequestMapping(value= "/validatorUpdateProductAmount")
+	@ResponseBody
+	public BaseResult validatorUpdateProductAmount(BigDecimal amount,Integer sid,Integer id) {
+		BaseResult br = new BaseResult();
+		try{
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(sid);
+			drSubjectInfo.setSurplusAmount(drSubjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)));
+			if(drProductInfo.getSid() == sid){
+				drSubjectInfo.setSurplusAmount(Utils.nwdBcadd(drSubjectInfo.getSurplusAmount(), drProductInfo.getAmount()));
+			}
+			if(amount.compareTo(drSubjectInfo.getSurplusAmount())>0){
+				br.setSuccess(false);
+			}else{
+				br.setSuccess(true);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 跳转到产品新增页面
+	 */
+	@RequestMapping("/toUpdateProductInfo")
+	public String toUpdateProductInfo(Map<String,Object> model,HttpServletRequest request,Integer id) {
+		try {
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productType")));
+			model.put("repayType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("repayType")));
+			model.put("intermediary", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("intermediary")));
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			model.put("drProductInfo",drProductInfo);
+			
+			if(Utils.isObjectNotEmpty(drProductInfo.getFid())){
+				DrProductInfo fProductInfo = drProductInfoService.getDrProductInfoByid(drProductInfo.getFid());
+				model.put("fcode",fProductInfo.getCode());
+			}
+			
+			model.put("drProductExtend",drProductInfoService.getDrProductExtendByPid(drProductInfo.getId()));
+			
+			if(drProductInfo.getType() != 1 && drProductInfo.getSid() != null){
+				DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(drProductInfo.getSid());
+				model.put("drClaimsPic",  drClaimsInfoService.getDrClaimsPicByLid(drSubjectInfo.getLid()));
+			}
+			
+			model.put("drProductPic", drProductInfoService.getDrProductPicByPid(id));
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/updateDrProductInfo";
+	}
+	
+	/**
+	 * 修改产品信息
+	 * @param req
+	 * @param DrCarryParameter
+	 * @param name
+	 * @param claimsFiles
+	 * @return
+	 */
+	@RequestMapping(value="/updateDrProductInfo",produces = "text/html; charset=utf-8")
+	@ResponseBody
+	public String updateDrProductInfo(DrProductInfo drProductInfo,HttpServletRequest request,
+			@RequestParam MultipartFile[] productFiles,MultipartFile acceptPicFile){
+		
+		log.info("产品修改开始");
+		
+		BaseResult br = new BaseResult();
+		SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+		try {
+			String reg = ".+(.JPEG|.jpeg|.JPG|.jpg|.GIF|.gif|.BMP|.bmp|.PNG|.png)$";
+			Pattern pattern = Pattern.compile(reg);
+			for(int i=0;i<productFiles.length;i++){
+				Matcher matcher = pattern.matcher(productFiles[i].getOriginalFilename().toLowerCase());
+				if(!matcher.find()){
+					br.setSuccess(false);
+					br.setMsg("请上传正确的图片格式!");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+				
+				long fileSize = productFiles[i].getSize();
+				if(fileSize>1024*5000){
+					br.setSuccess(false);
+					br.setMsg("图片不能大于5M！");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+			}
+			if(Utils.isObjectNotEmpty(acceptPicFile)){
+				Matcher matcher = pattern.matcher(acceptPicFile.getOriginalFilename().toLowerCase());
+				if(!matcher.find()){
+					br.setSuccess(false);
+					br.setMsg("请上传正确承兑图片的格式!");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+				
+				long fileSize = acceptPicFile.getSize();
+				if(fileSize>1024*5000){
+					br.setSuccess(false);
+					br.setMsg("承兑图片不能大于5M！");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+			}
+			
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			drProductInfo.setStatus(1);
+			br = drProductInfoService.updateDrProductInfo(drProductInfo,productFiles,acceptPicFile);
+			
+			log.info("产品修改结束");
+			
+		} catch (Exception e) {
+			log.error("修改产品失败："+e);
+			br.setErrorMsg("修改失败!");
+			br.setSuccess(false);
+		}
+		JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+		return jsonObject.toString();
+	}
+	
+	/**
+	 * 跳转到产品审核页面
+	 */
+	@RequestMapping("/toAuditDrProductInfo")
+	public String toAuditDrProductInfo(Map<String,Object> model,HttpServletRequest request,Integer id) {
+		try {
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			model.put("drProductInfo",drProductInfo);
+			
+			if(Utils.isObjectNotEmpty(drProductInfo.getFid())){
+				DrProductInfo fProductInfo = drProductInfoService.getDrProductInfoByid(drProductInfo.getFid());
+				model.put("fcode",fProductInfo.getCode());
+			}
+			
+			model.put("drProductExtend", drProductInfoService.getDrProductExtendByPid(drProductInfo.getId()));
+			
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productType")));
+			model.put("repayType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("repayType")));
+			model.put("intermediary", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("intermediary")));
+			
+			if(drProductInfo.getType() != 1 && drProductInfo.getSid() != null){
+				DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(drProductInfo.getSid());
+				model.put("drClaimsPic",  drClaimsInfoService.getDrClaimsPicByLid(drSubjectInfo.getLid()));
+				model.put("drSubjectInfo", drSubjectInfo);
+			}
+
+			
+			model.put("auditType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("auditType")));
+			Map<String,Object> mapAudit = new HashMap<String, Object>();
+			mapAudit.put("fid", id);
+			mapAudit.put("type", 2);
+			mapAudit.put("sort", "DESC");
+			model.put("drAuditInfo",  drClaimsInfoService.getDrAuditInfo(mapAudit));
+			
+			model.put("drProductPic",  drProductInfoService.getDrProductPicByPid(id));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/auditDrProductInfo";
+	}
+	
+	/**
+	 * 添加产品审核信息
+	 * @param request
+	 * @param lid
+	 * @param opinion
+	 * @param status 
+	 * @return
+	 */
+	@RequestMapping(value="/addDrAuditInfo")
+	@ResponseBody
+	public BaseResult addDrAuditInfo(Integer pid,String opinion,Integer status,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(pid);
+			if(drProductInfo.getStatus() != 1 && drProductInfo.getStatus() != 3){
+				br.setErrorMsg("该产品不可审核!");
+				br.setSuccess(false);
+				return br;
+			}
+//			String opinionStr=new String((request.getParameter("opinion")).getBytes("iso-8859-1"),"utf-8");
+			//需要在tomcat配置文件server.xml中的Connector中添加URIEncoding="UTF-8"
+			String opinionStr=new String(request.getParameter("opinion"));
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			DrAuditInfo drAuditInfo = new DrAuditInfo();
+			drAuditInfo.setFid(pid);
+			drAuditInfo.setType(2);
+			drAuditInfo.setOpinion(opinionStr);
+			drAuditInfo.setStatus(status);
+			drAuditInfo.setAddUser(usersVo.getUserKy().intValue());
+			br = drProductInfoService.insertDrAuditInfo(drAuditInfo);
+		} catch (Exception e) {
+			log.error("审核产品失败："+e);
+			br.setErrorMsg("审核失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 跳转到产品显示页面
+	 */
+	@RequestMapping("/toShowDrProductInfo")
+	public String toShowDrProductInfo(Map<String,Object> model,HttpServletRequest request,Integer id) {
+		try {
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productType")));
+			model.put("repayType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("repayType")));
+			model.put("intermediary", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("intermediary")));
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			model.put("drProductInfo",drProductInfo);
+			
+			if(Utils.isObjectNotEmpty(drProductInfo.getFid())){
+				DrProductInfo fProductInfo = drProductInfoService.getDrProductInfoByid(drProductInfo.getFid());
+				model.put("fcode",fProductInfo.getCode());
+			}
+			
+			model.put("drProductExtend",drProductInfoService.getDrProductExtendByPid(drProductInfo.getId()));
+			
+			if(drProductInfo.getType() != 1 && drProductInfo.getSid() != null){
+				DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(drProductInfo.getSid());
+				model.put("drClaimsPic",  drClaimsInfoService.getDrClaimsPicByLid(drSubjectInfo.getLid()));
+				model.put("drSubjectInfo", drSubjectInfo);
+			}
+			
+			model.put("auditType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("auditType")));
+			Map<String,Object> mapAudit = new HashMap<String, Object>();
+			mapAudit.put("fid", id);
+			mapAudit.put("type", 2);
+			mapAudit.put("sort", "DESC");
+			model.put("drAuditInfo",  drClaimsInfoService.getDrAuditInfo(mapAudit));
+			
+			model.put("drProductPic",  drProductInfoService.getDrProductPicByPid(id));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/showDrProductInfo";
+	}
+	
+	/**
+	 * 查询是否可以修改或审核
+	 * @param request
+	 * @param operate 区分是修改审核
+	 * @return
+	 */
+	@RequestMapping(value="/isOperate")
+	@ResponseBody
+	public BaseResult isOperate(Integer id,String operate,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			if("update".equals(operate)){
+				if(drProductInfo.getStatus() != 1 && drProductInfo.getStatus() != 3 && drProductInfo.getStatus() != 2){
+					br.setErrorMsg("该产品不可修改!");
+					br.setSuccess(false);
+					return br;
+				}
+			}
+			if("audit".equals(operate)){
+				if(drProductInfo.getStatus() != 1 && drProductInfo.getStatus() != 3){
+					br.setErrorMsg("该产品不可审核!");
+					br.setSuccess(false);
+					return br;
+				}
+			}
+			br.setSuccess(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("操作失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 上架操作
+	 * @param request
+	 * @param id
+	 * @return
+	 */
+	@RequestMapping(value="/updateDrProductStatus")
+	@ResponseBody
+	public BaseResult updateDrProductStatus(Integer id,String startDate,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			if(Utils.isObjectEmpty(usersVo)){
+				br.setErrorMsg("登录时间已过期，请重新登录!");
+				br.setSuccess(false);
+				return br;
+			}
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			
+			Date establish = Utils.getDayNumOfAppointDate(Utils.parse(startDate, "yyyy-MM-dd"),-(drProductInfo.getRaiseDeadline()));
+
+			if(drProductInfo.getStatus() == 2){
+				if(drProductInfo.getFid() != null){
+					DrProductInfo previousProduct = drProductInfoService.getDrProductInfoByid(drProductInfo.getFid());
+					if(!Utils.areSameDay(establish, Utils.parse(previousProduct.getExpireDate(),"yyyy-MM-dd"))){
+						br.setErrorMsg("产品募集期不正确,该产品不可上架！");
+						br.setSuccess(false);
+						return br;
+					}
+				}
+				drProductInfo.setStatus(5);
+			}else if (drProductInfo.getStatus() == 5 && drProductInfo.getIsAuto() == 1 && Utils.isObjectEmpty(drProductInfo.getStartDate())) {
+				//手动上架时移除自动上架配置
+				drProductInfo.setIsAuto(0);
+				drProductInfo.setAutoAmount(null);
+				drProductInfo.setAutoNum(0);
+				drProductInfo.setAutoAddTime(null);
+			}else{
+				br.setErrorMsg("该产品不可上架!");
+				br.setSuccess(false);
+				return br;
+			}
+			drProductInfo.setStartDate(Utils.parse(startDate,"yyyy-MM-dd HH:mm:ss"));
+			drProductInfo.setExpireDate(Utils.getDayNumOfAppointDate(Utils.parse(drProductInfo.getStartDate(), "yyyy-MM-dd"),-(drProductInfo.getDeadline()+drProductInfo.getRaiseDeadline())));
+			drProductInfo.setEstablish(establish);
+			drProductInfo.setIsShow(1);
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+
+			br = drProductInfoService.updateDrProductStatus(drProductInfo,"validatorSid");
+//			if(br.isSuccess()){
+//				//添加自动投标任务
+//				drProductQuartzLogService.addQuartz(drProductInfo);
+//			}
+		} catch (Exception e) {
+			log.error("上架失败", e);
+			br.setErrorMsg("上架失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 取消预约操作
+	 * @param request
+	 * @param id
+	 * @return
+	 */
+	@RequestMapping(value="/updateDrProductCancelBespoke")
+	@ResponseBody
+	public BaseResult updateDrProductCancelBespoke(Integer id,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			if(drProductInfo.getStartDate().getTime()<new Date().getTime()){
+				br.setErrorMsg("该产品已上架，不可取消预约!");
+				br.setSuccess(false);
+				return br;
+			}
+			drProductInfo.setStartDate(null);
+			drProductInfo.setExpireDate(null);
+			drProductInfo.setEstablish(null);
+			drProductInfo.setStatus(2);
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			drProductInfoService.updateDrProductCancelBespoke(drProductInfo);
+			//移除自动投标任务
+			drProductQuartzLogService.removeQuartz(drProductInfo, 2);
+			br.setMsg("操作成功！");
+			br.setSuccess(true);
+			return br;
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("取消预约失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 复制操作
+	 * @param request
+	 * @param code
+	 * @return
+	 */
+	@RequestMapping(value="/copyDrProductInfo")
+	@ResponseBody
+	public BaseResult copyDrProductInfo(String code){
+		BaseResult br = new BaseResult();
+		Map<String,Object> map = new HashMap<String, Object>();
+		try {
+			map.put("code", code);
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByMap(map);
+			if(Utils.isObjectEmpty(drProductInfo)){
+				br.setSuccess(false);
+				br.setErrorMsg("没有此产品编号！");
+				return br;
+			}
+			map.clear();
+			map.put("drProductInfo", drProductInfo);
+			
+			map.put("drProductExtend", drProductInfoService.getDrProductExtendByPid(drProductInfo.getId()));
+			
+			DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(drProductInfo.getSid());
+			if(Utils.isObjectNotEmpty(drSubjectInfo)){
+				map.put("drClaimsPic",  drClaimsInfoService.getDrClaimsPicByLid(drSubjectInfo.getLid()));
+			}
+			
+			br.setMap(map);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 修改是否显示
+	 * @param request
+	 * @param id
+	 * @param isShow
+	 * @return
+	 */
+	@RequestMapping(value="/updateDrProductIsShow")
+	@ResponseBody
+	public BaseResult updateDrProductIsShow(Integer id,Integer isShow,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			if(drProductInfo.getIsShow() == isShow){
+				if(0 == isShow){
+					drProductInfo.setIsShow(1);
+				}else{
+					drProductInfo.setIsShow(0);
+				}
+			}
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			br = drProductInfoService.updateDrProductStatus(drProductInfo,null);
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("更改失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 下架
+	 * @param request
+	 * @param id
+	 * @return
+	 */
+	@RequestMapping(value="/updateDrProductFans")
+	@ResponseBody
+	public BaseResult updateDrProductFans(Integer id,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			if(drProductInfo.getAlreadyRaiseAmount().compareTo(new BigDecimal(0))>0){
+				br.setErrorMsg("该产品已经有人投资了，不可下架！！！");
+				br.setSuccess(false);
+				return br;
+			}
+			drProductInfo.setStatus(2);
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			br = drProductInfoService.updateDrProductStatus(drProductInfo,null);
+			
+			//移除任务
+			drProductQuartzLogService.removeQuartz(drProductInfo, 2);
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("更改失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 修改是否热推
+	 * @param id
+	 * @param isHot
+	 * @param request
+	 * @return
+	 */
+	@RequestMapping(value="/updateDrProductIsHot")
+	@ResponseBody
+	public BaseResult updateDrProductIsHot(Integer id,Integer isHot,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			if(drProductInfo.getIsHot() == isHot){
+				if(0 == isHot){
+					drProductInfo.setIsHot(1);
+				}else{
+					drProductInfo.setIsHot(0);
+				}
+			}
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			br = drProductInfoService.updateDrProductStatus(drProductInfo,null);
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("更改失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 根据ID删除产品图片
+	 * @param request
+	 * @param id
+	 * @return
+	 */
+	@RequestMapping(value="/deleteDrProductPic")
+	@ResponseBody
+	public BaseResult deleteDrProductPic(Integer id){
+		BaseResult br = new BaseResult();
+		try {
+			drProductInfoService.deleteDrProductPicById(id);
+			br.setSuccess(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("更改失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 作废操作
+	 * @param request
+	 * @param id
+	 * @return
+	 */
+	@RequestMapping(value="/updateDrProductDelete")
+	@ResponseBody
+	public BaseResult updateDrProductDelete(Integer id,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			if(drProductInfo.getStatus() == 2){
+				drProductInfo.setStatus(4);
+			}else{
+				br.setErrorMsg("该产品不可作废!");
+				br.setSuccess(false);
+				return br;
+			}
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			br = drProductInfoService.updateDrProductStatus(drProductInfo,"validatorSid");
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("操作失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 根据ID查询产品信息
+	 * @param id
+	 * @return BaseResult
+	 */
+	@RequestMapping(value= "/queryDrProductInfo")
+	@ResponseBody
+	public BaseResult queryDrProductInfo(Integer id) {
+		BaseResult result = new BaseResult();
+		Map<String,Object> map = new HashMap<String, Object>();
+		DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+		map.put("drProductInfo",drProductInfo);
+		map.put("drProductExtend",drProductInfoService.getDrProductExtendByPid(drProductInfo.getId()));
+		result.setMap(map);
+		result.setSuccess(true);
+		return result;
+	}
+	
+	/**
+	 * 上架后修改产品信息
+	 * @param DrChannelInfo
+	 * @return
+	 */
+	@RequestMapping(value= "/updateDrProductInfoForElse")
+	@ResponseBody
+	public BaseResult updateDrProductInfoForElse(DrProductInfo drProductInfo,HttpServletRequest request) {
+		BaseResult br = new BaseResult();
+		SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+		try {
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			br = drProductInfoService.updateDrProductInfoForElse(drProductInfo);
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("修改失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 判断是否可以续发
+	 * @param DrChannelInfo
+	 * @return
+	 */
+	@RequestMapping(value= "/validatorAddDrProductInfoRenewal")
+	@ResponseBody
+	public BaseResult validatorAddDrProductInfoRenewal(int id,HttpServletRequest request) {
+		BaseResult br = new BaseResult();
+		try {
+			Map<String,Object> map = new HashMap<String, Object>();
+			map.put("fid", id);
+			map.put("noStatus", 4);
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByMap(map);
+			if(Utils.isObjectNotEmpty(drProductInfo)){
+				br.setErrorMsg("该产品已续发!");
+				br.setSuccess(false);
+			}else{
+				br.setSuccess(true);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			br.setErrorMsg("操作失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	/**
+	 * 跳转到产品续发页面
+	 */
+	@RequestMapping("/toAddProductInfoRenewal")
+	public String toAddProductInfoRenewal(Map<String,Object> model,HttpServletRequest request,Integer id) {
+		SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+		try {
+			model.put("productCode", Utils.createOrderNo(4, usersVo.getUserKy().intValue(), "CP-"));
+			
+			model.put("type", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("productType")));
+			model.put("repayType",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("repayType")));
+			model.put("intermediary", ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("intermediary")));
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			model.put("drProductInfo",drProductInfo);
+			model.put("drProductExtend",drProductInfoService.getDrProductExtendByPid(drProductInfo.getId()));
+			
+			if(drProductInfo.getType() != 1 && drProductInfo.getSid() != null){
+				DrSubjectInfo drSubjectInfo = drSubjectInfoService.getDrSubjectInfoByid(drProductInfo.getSid());
+				model.put("drClaimsPic",  drClaimsInfoService.getDrClaimsPicByLid(drSubjectInfo.getLid()));
+				model.put("drSubjectInfo", drSubjectInfo);
+			}
+
+			model.put("drProductPic", drProductInfoService.getDrProductPicByPid(id));
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/product/addDrProductInfoRenewal";
+	}
+	
+	/**
+	 * 添加产品续发信息
+	 * @param req
+	 * @param DrProductInfo
+	 * @param productFiles
+	 * @param acceptPicFile
+	 * @return
+	 */
+	@RequestMapping(value="/addDrProductInfoRenewal",produces = "text/html; charset=utf-8")
+	@ResponseBody
+	public String addDrProductInfoRenewal(DrProductInfo drProductInfo,HttpServletRequest request,
+			@RequestParam MultipartFile[] productFiles,MultipartFile acceptPicFile){
+		BaseResult br = new BaseResult();
+		SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+		try {
+			String reg = ".+(.JPEG|.jpeg|.JPG|.jpg|.GIF|.gif|.BMP|.bmp|.PNG|.png)$";
+			Pattern pattern = Pattern.compile(reg);
+			for(int i=0;i<productFiles.length;i++){
+				Matcher matcher = pattern.matcher(productFiles[i].getOriginalFilename().toLowerCase());
+				if(!matcher.find()){
+					br.setSuccess(false);
+					br.setMsg("请上传正确的图片格式!");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+				
+				long fileSize = productFiles[i].getSize();
+				if(fileSize>1024*5000){
+					br.setSuccess(false);
+					br.setMsg("图片不能大于5M！");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+			}
+			if(Utils.isObjectNotEmpty(acceptPicFile)){
+				Matcher matcher = pattern.matcher(acceptPicFile.getOriginalFilename().toLowerCase());
+				if(!matcher.find()){
+					br.setSuccess(false);
+					br.setMsg("请上传正确承兑图片的格式!");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+				
+				long fileSize = acceptPicFile.getSize();
+				if(fileSize>1024*5000){
+					br.setSuccess(false);
+					br.setMsg("承兑图片不能大于5M！");
+					JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+					return jsonObject.toString();
+				}
+			}
+			
+			drProductInfo.setAddUser(usersVo.getUserKy().intValue());
+			drProductInfo.setStatus(1);
+			br = drProductInfoService.insertDrProductInfoRenewal(drProductInfo,productFiles,acceptPicFile);
+		} catch (Exception e) {
+			log.error("续发产品失败："+e);
+			br.setErrorMsg("续发失败!");
+			br.setSuccess(false);
+		}
+		JSONObject jsonObject = (JSONObject) JSONObject.toJSON(br);
+		return jsonObject.toString();
+	}
+	
+	@RequestMapping("/exportDrProductInfo")
+	public ModelAndView exportDrProductInfo(DrProductInfo drProductInfo,Integer page,Integer rows)throws Exception{
+		Map<String, Object> param = new HashMap<String, Object>();
+		param.put("simpleName", java.net.URLDecoder.decode(drProductInfo.getSimpleName(),"utf-8"));
+		if(drProductInfo.getStatus()!=null){
+			param.put("status", drProductInfo.getStatus());
+		}
+		if(drProductInfo.getSid() != null && drProductInfo.getSid() > 0)
+		{
+			param.put("sid", drProductInfo.getSid());
+		}
+		param.put("deadline",drProductInfo.getDeadline());
+		param.put("surplusDay",drProductInfo.getSurplusDay());
+		param.put("isAuto",drProductInfo.getIsAuto());
+		param.put("dateStart",drProductInfo.getDateStart());
+		param.put("dateEnd",drProductInfo.getDateEnd());
+
+		List<Map<String, Object>> rowsList = drProductInfoService.selectDrProductInfoList(param);
+		String[] title = new String[]{"产品编号","产品全称","产品利率","产品期限","产品金额","已募金额","投资记录","产品状态","上架时间","募集期限","满标时间",
+				"到期时间","剩余到期天数","承兑机构","可否加息","可否返现","可否加倍","关联标的名称","续发产品名称"};
+		List<List<Object>> tableList = new ArrayList<List<Object>>();
+		List<Object> lc = null;
+		for(Map<String, Object> map:rowsList){
+			lc = new ArrayList<Object>();
+			lc.add(map.get("code"));//产品编号
+			lc.add(map.get("fullName")==null?"":map.get("fullName"));//产品名称
+			lc.add(map.get("rate"));//产品利率
+			lc.add(map.get("deadline"));//产品期限
+			lc.add(map.get("amount"));//产品金额
+			lc.add(map.get("alreadyRaiseAmount"));//已募金额
+			lc.add(map.get("investCount")==null?"0":map.get("investCount"));//投资记录
+			lc.add(map.get("statusName"));//产品状态
+			lc.add(map.get("startDate")==null?"":map.get("startDate"));//上架时间
+			lc.add(map.get("raiseDeadline"));//募集期限
+			lc.add(map.get("fullDate")==null?"":map.get("fullDate"));//满标时间
+			lc.add(map.get("expireDate")==null?"":map.get("expireDate"));//到期时间
+			lc.add(map.get("surplusDay"));//剩余到期天数
+			lc.add(map.get("accept"));//承兑机构
+			lc.add(map.get("isInterest"));//可否加息
+			lc.add(map.get("isCash"));//可否返现
+			lc.add(map.get("isDouble"));//可否加倍
+			lc.add(map.get("sName")==null?"":map.get("sName"));//关联标的名称
+			lc.add(map.get("parentName")==null?"":map.get("parentName"));//续发产品名称
+			tableList.add(lc);
+		}
+		param.clear();
+		param.put("excelName", "product_info_"+System.currentTimeMillis()+".xls");
+		param.put("titles", title);
+		param.put("list", tableList);
+		return new ModelAndView(new JXLExcelView(), param);
+	}
+	
+	/**
+	 * 表单提交日期绑定
+	 * @param binder
+	 */
+    @InitBinder  
+    public void initBinder(WebDataBinder binder) {  
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");  
+        dateFormat.setLenient(false);  
+        binder.registerCustomEditor(Date.class, new CustomDateEditor(dateFormat, true));  
+    }
+    
+    /**
+	 * 跳转到产品预估页面
+	 */
+	@RequestMapping("/toDrReturnMoneyEstimate")
+	public String toDrReturnMoneyEstimate(Map<String,Object> model) {
+		return "system/operate/drReturnMoneyEstimateList";
+	}
+	
+	/**
+	 * 得到回款预估的数据 
+	 * @param start,end
+	 * @param page
+	 * @param rows
+	 * @return
+	 */
+	@RequestMapping(value= "/drReturnMoneyEstimateList")
+	@ResponseBody
+	public PageInfo drReturnMoneyEstimateList(DrProductInvestRepayInfo start,DrProductInvestRepayInfo end,Integer page,Integer rows) {
+		if(page == null){
+			page = PageInfo.DEFAULT_PAGE_ON;
+		}
+		if(rows == null){
+			rows = PageInfo.CRM_DEFAULT_PAGE_SIZE;
+		}
+		PageInfo pi = new PageInfo(page,rows);
+		BaseResult result = drProductInfoService.selectReturnMoneyEstimate(start, end, pi);
+		return (PageInfo)result.getMap().get("page");
+	}
+	
+	/**
+	 * 导出回款预估数据
+	 * @param start
+	 * @param end
+	 * @param page
+	 * @param rows
+	 * @return
+	 */
+	@RequestMapping("/exportDrMoneyEstimateConf")
+	public  ModelAndView exportDrMoneyEstimateConf(DrProductInvestRepayInfo start,DrProductInvestRepayInfo end,Integer page,Integer rows)throws Exception{
+		Map<String,Object> param = new HashMap<String, Object>();
+		PageInfo pi = new PageInfo(page,Integer.MAX_VALUE);
+		BaseResult result = drProductInfoService.selectReturnMoneyEstimate(start, end, pi);
+		pi = (PageInfo) result.getMap().get("page");
+		List<DrProductInvestRepayInfo> rowsList = (List<DrProductInvestRepayInfo>)pi.getRows();
+		String[] title = new String[]{"时间","回款-满期标","回款-转让标","总回款"};
+		List<List<Object>> tableList = new ArrayList<List<Object>>();
+		List<Object> lc = null;
+		for(DrProductInvestRepayInfo drProductInvestRepayInfo:rowsList){
+			lc = new ArrayList<Object>();
+			lc.add(drProductInvestRepayInfo.getShouldTime()==null?"":Utils.getparseDate(drProductInvestRepayInfo.getShouldTime(), "yyyy-MM-dd HH:mm:ss"));
+			lc.add(drProductInvestRepayInfo.getExpireLabel()==null?"":drProductInvestRepayInfo.getExpireLabel());
+			lc.add(drProductInvestRepayInfo.getTransferLabel()==null?"":drProductInvestRepayInfo.getTransferLabel());
+			lc.add(drProductInvestRepayInfo.getSumReturnMoney()==null?"":drProductInvestRepayInfo.getSumReturnMoney());
+			tableList.add(lc);
+		}
+		
+		param.clear();
+		param.put("excelName", "ReturnMoneyEstimate_"+System.currentTimeMillis()+".xls");
+		param.put("titles", title);
+		param.put("list", tableList);
+		return new ModelAndView(new JXLExcelView(), param);
+	
+	}
+	/**
+	 * 发标预估
+	 * @param drProductInvestRepayInfo
+	 * @return
+	 */
+	@RequestMapping("/Estimate")
+	@ResponseBody
+	public BaseResult estimate(DrProductInvestRepayInfo drProductInvestRepayInfo) {
+		BaseResult result = new BaseResult();
+		Map<String,Object> map = new HashMap<String, Object>();
+		SimpleDateFormat sdf =   new SimpleDateFormat("yyyy年MM月dd日 ");
+		try {
+			drProductInvestRepayInfo.setSumTime(drProductInvestRepayInfo.getRaiseDays() + drProductInvestRepayInfo.getProductDays());
+			drProductInvestRepayInfo=drProductInfoService.estimate(drProductInvestRepayInfo);
+			map.put("shouldTime", sdf.format(drProductInvestRepayInfo.getShouldTime()));		
+			map.put("expireLabel", drProductInvestRepayInfo.getExpireLabel());
+			map.put("transferLabel", drProductInvestRepayInfo.getTransferLabel());
+			map.put("sumReturnMoney", drProductInvestRepayInfo.getSumReturnMoney());
+			result.setMap(map);
+			result.setSuccess(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			result.setSuccess(false);
+			result.setErrorMsg("预估失败");
+		}
+		return result;
+	}
+	
+	/**
+	 * 自动上架
+	 * @param id
+	 * @param autoAmount
+	 * @param request
+	 * @return
+	 */
+	@RequestMapping(value="/aotoUpdateProductStatus")
+	@ResponseBody
+	public BaseResult aotoUpdateProductStatus(Integer id,BigDecimal autoAmount,Integer autoNum,HttpServletRequest request){
+		BaseResult br = new BaseResult();
+		try {
+			request.setCharacterEncoding("UTF-8");
+			SysUsersVo usersVo= (SysUsersVo) request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+			if(Utils.isObjectEmpty(usersVo)){
+				br.setErrorMsg("登录时间已过期，请重新登录!");
+				br.setSuccess(false);
+				return br;
+			}
+			
+			DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(id);
+			
+			if(drProductInfo.getStatus() != 2){
+				br.setErrorMsg("该产品不可上架!");
+				br.setSuccess(false);
+				return br;
+			}
+			
+//			Integer num = drProductInfoService.getAutoAdded(drProductInfo.getDeadline());
+//			if (num >= 1) {
+//				br.setErrorMsg("已经有同期产品在自动上架队列中!");
+//				br.setSuccess(false);
+//				return br;
+//			}
+			
+			drProductInfo.setStatus(2);//状态  已审核
+			drProductInfo.setIsShow(0);
+			drProductInfo.setIsAuto(1);
+			drProductInfo.setAutoAmount(autoAmount);
+			drProductInfo.setAutoNum(autoNum);
+			if (Utils.isObjectEmpty(drProductInfo.getAutoAddTime())){
+				drProductInfo.setAutoAddTime(new Date());
+			}
+			drProductInfo.setUpdUser(usersVo.getUserKy().intValue());
+			br = drProductInfoService.updateDrProductStatus(drProductInfo,"validatorSid");
+		} catch (Exception e) {
+			log.error("上架失败", e);
+			br.setErrorMsg("上架失败!");
+			br.setSuccess(false);
+		}
+		return br;
+	}
+	
+	
+	@RequestMapping(value="/reviewDrProductInfo")
+	@ResponseBody
+	public Map<String, Object> reviewDrProductInfoBtn(Integer id,HttpServletRequest request){
+		Map<String, Object> map = new HashMap<String, Object>();
+		DrProductInfo drProductInfo = drProductInfoService.getDrProductInfoByid(Integer.valueOf(id));
+		char[] ary2 = {'0','0','0','0'};
+		int nums = 0;
+		try {
+			nums = drProductInfoService.updateProductToEnd(drProductInfo, ary2, nums);
+			log.info("产品【"+drProductInfo.getFullName()+"】"+"计息的次数"+nums);
+			map.put("success", true);
+			map.put("msg", "产品复审成功");
+		} catch (Exception e) {
+			log.error("产品复审异常"+e);
+			map.put("success", false);
+			map.put("msg", "产品复审失败");
+		}
+		return map;
+	}
+}

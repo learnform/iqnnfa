@@ -1,0 +1,228 @@
+package com.dr.controller.index;
+
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
+import com.dr.model.product.DrProductInfo;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.alibaba.fastjson.JSON;
+import com.dr.common.BaseResult;
+import com.dr.common.PageInfo;
+import com.dr.common.Utils;
+import com.dr.model.member.DrMemberBank;
+import com.dr.model.system.SysBanner;
+import com.dr.service.member.DrMemberBankService;
+import com.dr.service.product.DrProductInfoService;
+import com.dr.service.product.DrProductInvestService;
+import com.dr.service.system.SysArticleService;
+import com.dr.service.system.SysBannerService;
+
+@RequestMapping("/index")
+@Controller
+public class IndexController {
+    private Logger log = Logger.getLogger(this.getClass());
+    @Autowired
+    private SysBannerService sysBannerService;
+    @Autowired
+    private DrProductInfoService drProductInfoService;
+    @Autowired
+    private SysArticleService sysArticleService;
+    @Autowired
+    private DrProductInvestService drProductInvestService;
+    @Autowired
+    private DrMemberBankService drMemberBankService;
+
+    @RequestMapping(value = "/index", method = RequestMethod.POST)
+    @ResponseBody
+    public String index(HttpServletRequest req, Integer uid) {
+        BaseResult br = new BaseResult();
+        try {
+            String version = req.getParameter("version");
+            String channel = req.getParameter("channel") == null ? "" : req.getParameter("channel").toString();
+            Map<String, Object> map = new HashMap<String, Object>();
+
+            if (!"".equals(channel) && channel.equals("1")) {
+                map.put("code", 5);
+            } else {
+            	//注释之前安卓的code,改为7
+                //map.put("code", 4);
+                map.put("code", 7);
+            }
+            //首页banner
+            List<SysBanner> sbList = sysBannerService.indexBanner(map);
+
+            map.clear();
+            if (Utils.isObjectNotEmpty(uid)) {
+                int haveFifteendaysInvest = drProductInfoService.selectHaveFifteendaysInvestIndex(uid);
+//				map.put("uid",uid);
+//				map.put("statuses", new Integer[]{0,1,3});
+//				int investTotal = drProductInvestService.selectInvestLogByParam(map, new PageInfo()).getTotal();
+                map.clear();
+//				if(investTotal<=0){
+//					//体验标
+//					map.put("newHand", drProductInfoService.selectNewHandInfo());
+//				}else
+                if (haveFifteendaysInvest > 0) {
+                    //体验标
+                    DrProductInfo productInfo = drProductInfoService.selectFifteendaysProductInfo();
+                    productInfo.setExperience(true);
+                    map.put("defaultProduct", productInfo);
+                } else {
+                    DrProductInfo productInfo = drProductInfoService.selectDefaultProductInfo();
+                    productInfo.setExperience(false);
+                    map.put("defaultProduct", productInfo);
+                }
+            } else {
+                //体验标
+                DrProductInfo productInfo = drProductInfoService.selectFifteendaysProductInfo();
+                productInfo.setExperience(true);
+                map.put("defaultProduct", productInfo);
+            }
+
+            // 获得推荐的产品
+            map.put("recommendedProductList", drProductInfoService.getRecommendedProductList());
+
+            map.put("banner", sbList);
+            //注册人数和投资成功笔数
+            map.put("regCount", 20000);
+            map.put("investCount", 3000000);
+            br.setMap(map);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("获取数据失败", e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+        }
+        return JSON.toJSONString(br);
+    }
+
+    @RequestMapping(value = "/urgentNotice", method = RequestMethod.POST)
+    @ResponseBody
+    public String urgentNotice(HttpServletRequest req, Integer proId, Integer num, PageInfo pi, Integer noticeId) {
+        BaseResult br = new BaseResult();
+        if (Utils.isObjectEmpty(proId)) {
+            proId = 14;
+        }
+        if (Utils.isObjectEmpty(num)) {
+            pi.setPageSize(1);
+        } else {
+            pi.setPageSize(num);
+        }
+        try {
+            Map<String, Object> map = new HashMap<String, Object>();
+            map.put("offset", pi.getPageInfo().getOffset());
+            map.put("limit", pi.getPageSize());
+            map.put("proId", proId);//紧急公告
+            map.put("noticeId", noticeId);
+//			if (StringUtils.isNotBlank(req.getParameter("uid")) && proId==18) {
+//				DrMemberBank bank = drMemberBankService.selectIdentificationBank(Integer.parseInt(req.getParameter("uid")));
+//				map.put("bankName", bank.getBankName());
+//			}
+            List<Map<String, Object>> urgentNoticeList = sysArticleService.getIndexArticle(map);
+            map.clear();
+            if (!Utils.isEmptyList(urgentNoticeList)) {
+                if (Utils.isObjectEmpty(num)) {
+                    map.put("urgentNotice", urgentNoticeList.get(0));
+                } else if (Utils.isObjectNotEmpty(noticeId)) {
+                    map.put("urgentNotice", urgentNoticeList);
+                } else {
+                    pi.setTotal(sysArticleService.getTotalArticleNum(map));
+                    map.put("urgentNotice", urgentNoticeList);
+                    map.put("page", pi);
+                }
+            } else {
+                map.put("urgentNotice", null);
+            }
+            br.setMap(map);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("获取紧急公告失败", e);
+            br.setErrorCode("9999");
+            br.setSuccess(false);
+        }
+        return JSON.toJSONString(br);
+    }
+
+    @RequestMapping(value = "/isNewHeadExpire", method = RequestMethod.POST)
+    @ResponseBody
+    public String isNewHeadExpire(HttpServletRequest req, Integer uid) {
+        BaseResult br = new BaseResult();
+        Map<String, Object> map = new HashMap<String, Object>();
+        String url = "";
+        try {
+            if (Utils.isObjectNotEmpty(uid)) {
+                Map<String, Object> brMap = drProductInvestService.selectUserLastInvestmentInfo(uid);
+                if (Utils.isObjectNotEmpty(brMap.get("type")) && brMap.get("type").toString().equals("1")
+                        && Utils.isObjectNotEmpty(brMap.get("expireDate")) && brMap.get("flag").toString().equals("1")) {
+                    url = "";
+                }
+            }
+            map.put("url", url);
+            br.setMap(map);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("获取失败", e);
+            br.setErrorCode("9999");
+            br.setSuccess(false);
+        }
+        return JSON.toJSONString(br);
+
+    }
+
+    /**
+     * app启动banner
+     *
+     * @return
+     */
+    @RequestMapping("/startBanner")
+    @ResponseBody
+    public String startBanner(HttpServletRequest req) {
+        BaseResult br = new BaseResult();
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("code", 6);
+        List<SysBanner> sbList = sysBannerService.indexBanner(map);
+        map.clear();
+        map.put("bannerList", sbList);
+        br.setSuccess(true);
+        br.setMap(map);
+        return JSON.toJSONString(br);
+    }
+
+    /**
+     * 发现页轮播banner
+     *
+     * @param req
+     * @return
+     */
+    @RequestMapping("/discoverBanner")
+    @ResponseBody
+    public String discoverBanner(HttpServletRequest req) {
+        BaseResult br = new BaseResult();
+        Map<String, Object> map = new HashMap<String, Object>();
+        String channel = req.getParameter("channel");
+        if ("1".equals(channel)) {
+            map.put("isIos", 1);
+        } else if ("2".equals(channel)) {
+            map.put("isAndroid", 1);
+        } else if ("3".equals(channel)) {
+            map.put("isH5", 1);
+        }
+        map.put("code", 7);
+        List<SysBanner> sbList = sysBannerService.indexBanner(map);
+        map.clear();
+        map.put("bannerList", sbList);
+        br.setSuccess(true);
+        br.setMap(map);
+        return JSON.toJSONString(br);
+    }
+}

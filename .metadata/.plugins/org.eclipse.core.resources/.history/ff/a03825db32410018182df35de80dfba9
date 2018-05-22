@@ -1,0 +1,8 @@
+package cn.iqnnfa.configClass;
+
+import org.aspectj.lang.annotation.Aspect;
+
+@Aspect
+public class AspectExample {
+
+}

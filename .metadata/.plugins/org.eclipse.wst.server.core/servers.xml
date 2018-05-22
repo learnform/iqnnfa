@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<servers>
+  <server auto-publish-setting="2" auto-publish-time="1" configuration-id="/Servers/Tomcat v7.0 Server at localhost-config" deployDir="wtpwebapps" hostname="localhost" id="Tomcat v7.0 Server at localhost" name="dr80" runtime-id="Apache Tomcat v7.0" server-type="org.eclipse.jst.server.tomcat.70" server-type-id="org.eclipse.jst.server.tomcat.70" start-timeout="994" stop-timeout="999" testEnvironment="true" timestamp="14">
+    <list key="modules"/>
+  </server>
+  <server auto-publish-setting="2" auto-publish-time="1" configuration-id="/Servers/Tomcat v7.0 Server at localhost (2)-config" deployDir="wtpwebapps" hostname="localhost" id="Tomcat v7.0 Server at localhost (2)" name="dr_app81" runtime-id="Apache Tomcat v7.0" server-type="org.eclipse.jst.server.tomcat.70" server-type-id="org.eclipse.jst.server.tomcat.70" start-timeout="999" stop-timeout="999" testEnvironment="true" timestamp="5">
+    <list key="modules" value0="dr_app::org.eclipse.jst.jee.server:dr_app::jst.web::3.0"/>
+  </server>
+  <server auto-publish-setting="2" auto-publish-time="1" configuration-id="/Servers/Tomcat v7.0 Server at localhost (3)-config" deployDir="wtpwebapps" hostname="localhost" id="Tomcat v7.0 Server at localhost (3)" name="sys82" runtime-id="Apache Tomcat v7.0" server-type="org.eclipse.jst.server.tomcat.70" server-type-id="org.eclipse.jst.server.tomcat.70" start-timeout="45" stop-timeout="15" testEnvironment="true" timestamp="4">
+    <list key="modules" value0="system::org.eclipse.jst.jee.server:system::jst.web::3.0"/>
+  </server>
+</servers>

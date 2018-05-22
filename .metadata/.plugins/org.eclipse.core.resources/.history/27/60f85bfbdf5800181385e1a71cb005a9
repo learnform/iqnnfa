@@ -1,0 +1,13 @@
+package cn.iqnnfa.configClass;
+
+import org.springframework.context.ApplicationEvent;
+import org.springframework.context.ApplicationListener;
+
+public class iqnnfaListen implements ApplicationListener<iqnnfaEvent> {
+
+	@Override
+	public void onApplicationEvent(ApplicationEvent event) {
+		// TODO Auto-generated method stub
+		
+	}
+}

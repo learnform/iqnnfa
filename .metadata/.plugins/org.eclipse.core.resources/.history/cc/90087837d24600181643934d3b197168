@@ -1,0 +1,22 @@
+package com.dr.service.activity.impl;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.dr.dao.activity.BusinessReceiveRecorDAO;
+import com.dr.service.activity.BusinessReceiveRecordService;
+
+@Service
+public class BusinessReceiveRecordServiceImpl implements BusinessReceiveRecordService{
+	
+	@Autowired
+	private BusinessReceiveRecorDAO businessReceiveRecorDAO;
+	
+	@Override
+	public List<Map<String, Object>> findBusinessReceiveRecordByUid(Integer uid) {
+		return businessReceiveRecorDAO.findBusinessReceiveRecordByUid(uid);
+	}
+}

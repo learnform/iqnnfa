@@ -1,0 +1,27 @@
+package cn.iqnnfa;
+
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.stereotype.Component;
+
+import cn.iqnnfa.model.DrMember;
+
+@Component
+public class CommonUtis implements BeanPostProcessor {
+
+	@Override
+	public Object postProcessAfterInitialization(Object arg0, String arg1) throws BeansException {
+		// TODO Auto-generated method stub
+		System.out.println("实例生成之后的我");
+		return new DrMember();
+	}
+
+	@Override
+	public Object postProcessBeforeInitialization(Object arg0, String arg1) throws BeansException {
+		// TODO Auto-generated method stub
+		System.out.println("实例生成之前的我");
+		return new DrMember();
+	}
+	
+	
+}

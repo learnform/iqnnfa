@@ -1,0 +1,6 @@
+127.0.0.1 - - [27/Mar/2018:16:54:50 +0800] "GET / HTTP/1.1" 405 1045
+192.168.1.174 - - [27/Mar/2018:16:55:29 +0800] "POST /index/discoverBanner.do HTTP/1.1" 200 76
+192.168.1.174 - - [27/Mar/2018:16:56:03 +0800] "POST /index/discoverBanner.do HTTP/1.1" 200 76
+192.168.1.174 - - [27/Mar/2018:17:01:08 +0800] "POST /index/discoverBanner.do HTTP/1.1" 200 76
+192.168.1.174 - - [27/Mar/2018:17:02:24 +0800] "GET /index/discoverBanner.do?channel=3 HTTP/1.1" 200 40
+192.168.1.174 - - [27/Mar/2018:17:03:15 +0800] "GET /index/discoverBanner.do?channel=3 HTTP/1.1" 200 40

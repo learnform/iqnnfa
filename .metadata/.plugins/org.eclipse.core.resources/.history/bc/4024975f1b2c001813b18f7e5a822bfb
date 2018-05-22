@@ -1,0 +1,15 @@
+package cn.iqnnfa.dao;
+
+
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+import cn.iqnnfa.model.DrMember;
+
+
+@Mapper
+public interface IndexDAO {
+	@Select("select * from dr_member where id =#{uid}")
+	public DrMember findMemberByUid(@Param("id")Integer id);
+}

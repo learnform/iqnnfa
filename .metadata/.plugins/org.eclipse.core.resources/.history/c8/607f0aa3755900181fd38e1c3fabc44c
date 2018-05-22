@@ -1,0 +1,15 @@
+package com.dr.dao.activity;
+
+import org.apache.ibatis.annotations.Param;
+
+import com.dr.model.activity.DrActivity;
+
+public interface DrActivityDAO {
+	
+	/**
+	 * 通过主键获取活动信息
+	 * @param id
+	 * @return
+	 */
+	public DrActivity selectByPrimaryKey(@Param(value="id") Integer id);
+}

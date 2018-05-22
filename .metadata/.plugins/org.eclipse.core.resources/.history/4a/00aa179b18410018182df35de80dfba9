@@ -1,0 +1,10 @@
+package cn.iqnnfa;
+
+import org.springframework.core.io.UrlResource;
+
+public class Resource {
+	
+	public void findResource(){
+		UrlResource urlResource = new UrlResource(null);
+	}
+}

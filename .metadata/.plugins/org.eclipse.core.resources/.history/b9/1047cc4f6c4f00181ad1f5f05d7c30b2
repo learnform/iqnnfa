@@ -1,0 +1,433 @@
+package com.dr.controller.account.funds;
+
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
+import com.dr.dao.member.DrMemberCarryDAO;
+import com.dr.model.member.*;
+import com.dr.service.pay.fuiou.IFuiouPayService;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+
+import com.alibaba.fastjson.JSON;
+import com.dr.common.BaseResult;
+import com.dr.common.ConfigUtil;
+import com.dr.common.SecurityUtils;
+import com.dr.common.Utils;
+import com.dr.model.system.SysBank;
+import com.dr.service.member.DrMemberBankService;
+import com.dr.service.member.DrMemberCarryService;
+import com.dr.service.member.DrMemberFundsService;
+import com.dr.service.member.DrMemberService;
+import com.dr.service.system.impl.RedisClientTemplate;
+import com.jytpay.AppException;
+
+@RequestMapping("/withdrawals")
+@Controller
+public class WithdrawalsController {
+    private Logger log = Logger.getLogger(this.getClass());
+    @Autowired
+    private DrMemberCarryService drMemberCarryService;
+    @Autowired
+    private DrMemberFundsService drMemberFundsService;
+    @Autowired
+    private DrMemberBankService drMemberBankService;
+    @Autowired
+    public RedisClientTemplate redisClientTemplate;
+    @Autowired
+    private DrMemberService drMemberService;
+    @Autowired
+    private IFuiouPayService fuiouService;
+    @Autowired
+    private DrMemberCarryDAO drMemberCarryDAO;
+
+    @RequestMapping("/index")
+    @ResponseBody
+    public String index(HttpServletRequest req, Map<String, Object> model) {
+        BaseResult br = new BaseResult();
+        DrMember member = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+        if (Utils.isObjectEmpty(member)) {
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+            return JSON.toJSONString(br);
+        }
+        try {
+            DrMember drMember = drMemberService.selectByPrimaryKey(member.getUid());
+            if (Utils.isObjectEmpty(drMember)) {
+                br.setSuccess(false);
+                br.setErrorCode("9999");
+                return JSON.toJSONString(br);
+            }
+            Integer isCharge = drMemberCarryService.getDrCarryParamIsCharge(drMember.getUid());
+            model.put("isChargeFlag", isCharge);
+
+            DrMemberFunds drMemberFunds = drMemberFundsService.selectDrMemberFundsByUid(drMember.getUid());
+            model.put("funds", drMemberFunds.getBalance().setScale(2));
+
+            if (null == drMember.getTpassWord()) {
+                model.put("tpwFlag", 0);
+            } else {
+                model.put("tpwFlag", 1);
+            }
+            model.put("realFlag", drMember.getRealVerify());
+
+            if (1 == drMember.getRealVerify()) {
+                DrMemberBank drMemberBank = drMemberBankService.selectIdentificationBank(drMember.getUid());
+                if (Utils.isObjectNotEmpty(drMemberBank)) {
+                    drMemberBank.setBankNum(drMemberBank.getBankNum().substring(drMemberBank.getBankNum().length() - 4, drMemberBank.getBankNum().length()));
+                }
+                model.put("bankNum", drMemberBank.getBankNum());
+
+                Map<String, Object> queryMap = new HashMap<String, Object>();
+                queryMap.put("bankName", drMemberBank.getBankName());
+                SysBank sysBank = drMemberBankService.selectSysBank(queryMap);
+                if("".equals(sysBank) || sysBank ==null){
+                	
+                }
+                queryMap.clear();
+
+                model.put("bankCode", sysBank.getId());
+            }
+            br.setMap(model);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.info("提现首页", e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+        }
+        return JSON.toJSONString(br);
+    }
+
+    /**
+     * 申请提现接口
+     *
+     * @param req
+     * @param params
+     * @return
+     */
+    @RequestMapping("/addWithdrawals")
+    @ResponseBody
+    public String addWithdrawals(HttpServletRequest req, @RequestBody Map<String, Object> params) {
+        BaseResult br = new BaseResult();
+        DrMember member = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+
+        try {
+            Integer errorNums = StringUtils.isBlank(redisClientTemplate.get("error.tpwd.uid." + member.getUid())) ? 0 :
+                    Integer.parseInt(redisClientTemplate.get("error.tpwd.uid." + member.getUid()));//交易密码错误次数
+            if (errorNums > 2) {
+                br.setSuccess(false);
+                br.setErrorCode("2001");
+                return JSON.toJSONString(br);
+            }
+            if (Utils.isObjectEmpty(member)) {
+                br.setSuccess(false);
+                br.setErrorCode("9999");
+                return JSON.toJSONString(br);
+            }
+            Object amount = params.get("amount");
+            Object tpw = params.get("tpw");
+            Object isChargeFlag = params.get("isChargeFlag");
+
+            if (Utils.isObjectEmpty(amount)) {
+                br.setSuccess(false);
+                br.setErrorCode("1001");
+                return JSON.toJSONString(br);
+            }
+
+            if (Utils.isObjectEmpty(isChargeFlag)) {
+                br.setSuccess(false);
+                br.setErrorCode("9999");
+                return JSON.toJSONString(br);
+            }
+
+            redisClientTemplate.lock("withdrawals" + member.getUid().toString());
+            DrMemberCarry drMemberCarry = new DrMemberCarry();
+            Integer isCharge = drMemberCarryService.getDrCarryParamIsCharge(member.getUid());
+            if (isCharge != isChargeFlag) {
+                if (isCharge == 1) {
+                    br.setSuccess(false);
+                    br.setErrorCode("1007");
+                    return JSON.toJSONString(br);
+                } else {
+                    br.setSuccess(false);
+                    br.setErrorCode("1008");
+                    return JSON.toJSONString(br);
+                }
+            } else {
+                if (isCharge == 1) {
+                    if (new BigDecimal(amount.toString()).compareTo(new BigDecimal(3)) < 0) {
+                        br.setSuccess(false);
+                        br.setErrorCode("1001");
+                        return JSON.toJSONString(br);
+                    }
+                    drMemberCarry.setPoundage(new BigDecimal(2));
+                } else {
+                    if (new BigDecimal(amount.toString()).compareTo(new BigDecimal(1)) < 0) {
+                        br.setSuccess(false);
+                        br.setErrorCode("1001");
+                        return JSON.toJSONString(br);
+                    }
+                    drMemberCarry.setPoundage(new BigDecimal(0));
+                }
+            }
+            drMemberCarry.setAmount(new BigDecimal(amount.toString()).subtract(drMemberCarry.getPoundage()));
+
+            if (Utils.isObjectEmpty(tpw)) {
+                br.setSuccess(false);
+                br.setErrorCode("1002");
+                return JSON.toJSONString(br);
+            }
+
+            if (!member.getTpassWord().equals(SecurityUtils.MD5AndSHA256(tpw.toString()))) {
+                if (errorNums >= 2) {
+                    redisClientTemplate.setex("error.tpwd.uid." + member.getUid(), 3600, String.valueOf(errorNums + 1));
+                    br.setSuccess(false);
+                    br.setErrorCode("2001");
+                    return JSON.toJSONString(br);
+                }
+                Integer seconds = Utils.getDateSecondsSub(Utils.format(new Date(), "yyyy-MM-dd 23:59:59"), Utils.format(new Date(), "yyyy-MM-dd HH:mm:ss"));
+                redisClientTemplate.setex("error.tpwd.uid." + member.getUid(), seconds, String.valueOf(errorNums + 1));
+                br.setSuccess(false);
+                br.setErrorCode("1003");
+                return JSON.toJSONString(br);
+            }
+
+
+            Integer channel = 0;  //0 pc
+            drMemberCarry.setChannel(channel);
+
+            DrMemberBank drMemberBank = drMemberBankService.selectIdentificationBank(member.getUid());
+
+            DrMemberFunds drMemberFunds = drMemberFundsService.selectDrMemberFundsByUid(member.getUid());
+            if(drMemberFunds.getBalance().compareTo(drMemberCarry.getAmount().add(drMemberCarry.getPoundage()))<0){
+                br.setSuccess(false);
+                br.setErrorCode("1004");
+                return JSON.toJSONString(br);
+            }
+
+
+            DrCarryParam drCarryParam = drMemberCarryService.getDrCarryParam();
+            Map<String, Object> map = drMemberCarryService.insertDrMemberCarry(member,drMemberCarry,drMemberBank,drMemberFunds,drCarryParam);
+
+            DrMemberCarry carry = (DrMemberCarry)map.get("drMemberCarry");
+            if(Utils.isObjectNotEmpty(carry.getId())){
+                br = drMemberCarryService.saveFuiouPayment(member,map,drMemberBank,drCarryParam);
+            }
+
+        } catch (AppException e) {
+            br.setSuccess(false);
+            br.setErrorCode("1006");
+            log.error("认证提现超时", e);
+            return JSON.toJSONString(br);
+        } catch (Exception e) {
+            log.info("提现失败", e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+            return JSON.toJSONString(br);
+        }
+        return JSON.toJSONString(br);
+    }
+
+
+//    /**
+//     * 提现结果查询接口
+//     *
+//     * @param orderno 订单编号
+//     * @param startDt 订单起始日期
+//     * @param endDt  订单结束日期   日期段不能超过 15 天
+//     * @return
+//     */
+//    @RequestMapping(value = "/syncWithdrawOrder", method = RequestMethod.POST)
+//    @ResponseBody
+//    public void syncWithdrawOrder(@RequestParam("orderno") String orderno,
+//                                  @RequestParam("startDt") String startDt,
+//                                  @RequestParam("endDt") String endDt) {
+//
+//        log.info("富友支付通道提现结果查询中....");
+//
+//        try {
+//            drMemberCarryService.sycnWithdrawalOrderResult(orderno, startDt, endDt, "");
+//
+//        } catch (Exception e) {
+//
+//        }
+//        log.info("富友支付通道提现结果结束！！！");
+//    }
+//
+//    /**
+//     * 退票查询接口
+//     *
+//     * @param orderno 订单编号
+//     * @param startDt 订单起始日期
+//     * @param endDt 订单结束日期   日期段不能超过 15 天
+//     * @return
+//     */
+//    @RequestMapping(value = "/syncWithdrawSendbackOrder", method = RequestMethod.POST)
+//    @ResponseBody
+//    public void syncWithdrawSendbackOrder(@RequestParam("orderno") String orderno,
+//                                          @RequestParam("startDt") String startDt,
+//                                          @RequestParam("endDt") String endDt) {
+//
+//
+//        log.info("富友支付通道退票查询开始....");
+//
+//        try {
+//
+//            drMemberCarryService.sycnWithdrawalSendbackResult(orderno, startDt, endDt, "");
+//
+//        } catch (Exception e) {
+//
+//        }
+//
+//
+//        log.info("富友支付通道退票查询结束！！！！！");
+//    }
+
+
+    /**
+     * 富友支付通道退票回调接口
+     *
+     * @param orderno     订单号
+     * @param merdt       订单日期
+     * @param fuorderno   富友订单号
+     * @param tpmerdt     退票日期
+     * @param futporderno 富友退票订单号
+     * @param accntno     银行卡号
+     * @param accntnm     银行卡持卡人姓名
+     * @param bankno      总行代码
+     * @param amt         退票金额（单位：分）
+     * @param state       状态  1 为退票成功
+     * @param result      交易结果
+     * @param reason      结果原因
+     * @param mac         校验值
+     * @return 字符串“1” 代表通知成功，其他代表失败
+     */
+    @RequestMapping(value = "/callbackFyWithdrawFailed", method = RequestMethod.POST)
+    @ResponseBody
+    public String callbackFyWithdrawFailed(@RequestParam("orderno") String orderno,
+                                           @RequestParam("merdt") String merdt,
+                                           @RequestParam("fuorderno") String fuorderno,
+                                           @RequestParam("tpmerdt") String tpmerdt,
+                                           @RequestParam("futporderno") String futporderno,
+                                           @RequestParam("accntno") String accntno,
+                                           @RequestParam("accntnm") String accntnm,
+                                           @RequestParam("bankno") String bankno,
+                                           @RequestParam("amt") String amt,//退票金额 单位：分
+                                           @RequestParam("state") String state,
+                                           @RequestParam("result") String result,
+                                           @RequestParam("reason") String reason,
+                                           @RequestParam("mac") String mac) {
+
+
+        log.info("富友支付通道订单号：" + orderno + "退票回调受理中....");
+
+        DrMemberCarry drMemberCarry = drMemberCarryDAO.selectByOrderNum(orderno);
+        if (drMemberCarry == null || drMemberCarry.getStatus().intValue() != 1) {//提现状态，0未处理 1处理中 2成功 3失败  4拒绝 5超时
+            return "1";
+        }
+
+        String resultCode = "";
+
+        try {
+            //验证签名及相关数据
+            boolean checkSign = fuiouService.doCallBackWithdrawFailed(orderno, merdt, fuorderno, tpmerdt, futporderno, accntno, accntnm, amt, state, mac);
+
+            if (checkSign) {
+
+                redisClientTemplate.lock("withdrawals" + drMemberCarry.getUid().toString());
+
+                //处理解冻提现金额
+                drMemberCarryService.doUnfreezeWithdrawMoneyWhenFailed(orderno, fuorderno, futporderno, reason);
+
+                resultCode = "1";
+
+            } else {
+                resultCode = "100001";
+            }
+
+        } catch (Exception e) {
+            log.error("富友支付通道提现订单号：" + orderno + "退票回调受理出现异常" + e.getMessage());
+            resultCode = "100002";
+        } finally {
+            redisClientTemplate.del("withdrawals" + drMemberCarry.getUid().toString());
+        }
+
+        log.info("富友支付通道提现订单号：" + orderno + "退票回调受理结果：" + resultCode);
+        return resultCode;
+    }
+
+
+    /**
+     * 富友支付通道提现处理成功回调接口
+     *
+     * @param orderno   商户请求流水
+     * @param merdt     请求日期
+     * @param fuorderno 富友流水
+     * @param accntno   银行卡号
+     * @param accntnm   银行卡持卡人姓名
+     * @param bankno    总行代码
+     * @param amt       金额 单位：分
+     * @param state     状态 1为付款成功
+     * @param result    交易结果
+     * @param reason    结果原因
+     * @param mac       校验值
+     * @return
+     */
+    @RequestMapping(value = "/callbackFyWithdrawSuccess", method = RequestMethod.POST)
+    @ResponseBody
+    public String callbackFyWithdrawSuccess(@RequestParam("orderno") String orderno,
+                                            @RequestParam("merdt") String merdt,
+                                            @RequestParam("fuorderno") String fuorderno,
+                                            @RequestParam("accntno") String accntno,
+                                            @RequestParam("accntnm") String accntnm,
+                                            @RequestParam("bankno") String bankno,
+                                            @RequestParam("amt") String amt,//退票金额 单位：分
+                                            @RequestParam("state") String state,
+                                            @RequestParam("result") String result,
+                                            @RequestParam("reason") String reason,
+                                            @RequestParam("mac") String mac) {
+
+
+        log.info("富友支付通道订单号：" + orderno + "提现处理成功回调受理中....");
+
+        DrMemberCarry drMemberCarry = drMemberCarryDAO.selectByOrderNum(orderno);
+        if (drMemberCarry == null || drMemberCarry.getStatus().intValue() != 1) {//提现状态，0未处理 1处理中 2成功 3失败  4拒绝 5超时
+            return "1";
+        }
+
+        String resultCode = "";
+        try {
+            //验证签名及相关数据
+            boolean checkSign = fuiouService.doCallBackWithdrawSuccess(orderno, merdt, fuorderno, accntno, accntnm, amt, state, mac);
+
+            if (checkSign) {
+
+                redisClientTemplate.lock("withdrawals" + drMemberCarry.getUid().toString());
+
+                //处理解冻提现金额
+                drMemberCarryService.doUnfreezeWithdrawMoneyWhenSuccess(orderno, fuorderno, result, reason);
+
+                resultCode = "1";
+
+            } else {
+                resultCode = "100001";
+            }
+        } catch (Exception e) {
+            log.error("富友支付通道提现订单号：" + orderno + "处理成功回调出现异常：" + e.getMessage());
+            resultCode = "100002";
+        } finally {
+            redisClientTemplate.del("withdrawals" + drMemberCarry.getUid().toString());
+        }
+
+        log.info("富友支付通道提现订单号：" + orderno + "处理成功回调受理结果：" + resultCode);
+
+        return resultCode;
+    }
+}

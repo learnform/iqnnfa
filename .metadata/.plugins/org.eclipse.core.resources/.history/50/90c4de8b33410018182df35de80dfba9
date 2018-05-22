@@ -1,0 +1,19 @@
+package cn.iqnnfa.configClass;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+
+@Aspect
+public class AspectExample {
+	
+	@Around(value = "cn.iqnnfa.IndexController.findMemberByUids")
+	public void beforeEvent(ProceedingJoinPoint pjp){
+		try {
+			pjp.proceed();
+		} catch (Throwable e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+}

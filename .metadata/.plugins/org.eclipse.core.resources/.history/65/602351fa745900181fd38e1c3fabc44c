@@ -1,0 +1,13 @@
+package com.dr.service.activity;
+
+import com.dr.model.activity.DrActivity;
+
+public interface DrActivityService {
+
+	/**
+	 * 通过主键获取活动信息
+	 * @param id
+	 * @return
+	 */
+	public DrActivity selectByPrimaryKey(Integer id);
+}

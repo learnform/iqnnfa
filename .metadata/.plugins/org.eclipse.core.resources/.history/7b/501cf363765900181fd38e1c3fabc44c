@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.dr.dao.activity.DrActivityDAO">
+	<resultMap id="DrActivityResult" type="com.dr.model.activity.DrActivity">
+		<result column="id" property="id" jdbcType="INTEGER" />
+		<result column="activityName" property="activityName" jdbcType="VARCHAR" />
+		<result column="startTime" property="startTime" jdbcType="TIMESTAMP" />
+		<result column="endTime" property="endTime" jdbcType="TIMESTAMP" />
+		<result column="addTime" property="addTime" jdbcType="TIMESTAMP" />
+		<result column="addUser" property="addUser" jdbcType="VARCHAR" />
+		<result column="updateUser" property="updateUser" jdbcType="VARCHAR" />
+		<result column="lastUpdateTime" property="lastUpdateTime" jdbcType="TIMESTAMP" />
+	</resultMap>
+	<select id="selectByPrimaryKey" resultMap="DrActivityResult">
+		select * from dr_activity where id = #{id}
+	</select>
+	
+	<select id="selectInvestRanking"></select>
+	
+</mapper>

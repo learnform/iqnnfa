@@ -1,0 +1,8 @@
+package com.dr.service.member;
+
+import com.dr.model.cpa.DrChannelRewardPhonedata;
+
+public interface DrChannelRewardPhonedataService {
+
+   public void AddDrChannelRewardPhonedata(DrChannelRewardPhonedata drChannelRewardPhonedata );
+}

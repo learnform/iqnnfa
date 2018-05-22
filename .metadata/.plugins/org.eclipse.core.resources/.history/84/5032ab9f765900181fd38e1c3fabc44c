@@ -1,0 +1,95 @@
+package com.dr.dao.product;
+
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.dr.model.product.DrProductInvest;
+import org.apache.ibatis.annotations.Param;
+
+
+public interface DrProductInvestDAO {
+    /**
+     * 得到投资记录
+     *
+     * @param Map
+     * @return List<DrProductInvest>
+     */
+    public List<DrProductInvest> selectInvestLogByParam(Map<String, Object> map);
+
+    public Integer selectInvestLogCountByParam(Map<String, Object> map);
+
+    public Integer selectInvestFifteenDaysLogCountByParam(Map<String, Object> map);
+
+    public List<DrProductInvest> selectInvestLogByParamForPage(Map<String, Object> map);
+
+    /**
+     * 只插入有值得字段
+     *
+     * @param invest
+     */
+    public void insertSelective(DrProductInvest invest);
+
+    public BigDecimal selectInvestSumByParam(Map<String, Object> map);
+
+    public DrProductInvest selectByPrimaryKey(Integer id);
+
+    public Integer selectInvestCountByMap(Map<String, Object> map);
+
+    /**
+     * 查询时间段内，投资排名
+     *
+     * @return
+     */
+    public List<Map<String, Object>> selectInvestTopGroupByUid(Map<String, Object> map);
+
+    public Map<String, Object> selectUserLastInvestmentInfo(Integer uid);
+
+    /**
+     * 查询用户大于指定金额和期限的投资记录
+     *
+     * @param param
+     * @return
+     */
+    public List<DrProductInvest> selectInvestList(Map<String, Object> param);
+
+    public List<Map<String, Object>> rrlQueryInvestList(Map<String, Object> param);
+
+    /**
+     * 年化投资额
+     *
+     * @param Map<String, Object>
+     * @return BigDecimal
+     */
+    public BigDecimal getAnnualInvestSumByParam(Map<String, Object> map);
+
+    public BigDecimal selectAllProductInvest(Map<String, Object> map);
+
+    /**
+     * 获得合同Id.
+     *
+     * @param uid 用户id
+     * @param id  投资id
+     * @return 合同编号
+     */
+    String getContractNo(@Param("uid") Integer uid, @Param("id") Integer id);
+
+
+    /**
+     * 获得网贷之家投资记录.
+     *
+     * @param idList 产品Id
+     * @return 投资记录
+     */
+    List<HashMap<String, Object>> getWDZJDataList(@Param("idList") List<Integer> idList);
+    /**
+     * 查询用户首次投资金额
+     * @param uid
+     * @return
+     */
+	public List<DrProductInvest> selectFirstInvestAmount(@Param("uid")Integer uid);
+
+
+}

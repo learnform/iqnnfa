@@ -1,0 +1,108 @@
+package com.dr.dao.product;
+
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductType;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public interface DrProductInfoDAO {
+
+    /**
+     * 获取新手标信息
+     *
+     * @return
+     */
+    public DrProductInfo selectNewHandInfo();
+
+    /**
+     * 获取产品列表
+     *
+     * @param param
+     * @return
+     */
+    public List<Map<String, Object>> selectProductInfoListByParam(Map<String, Object> param);
+
+    /**
+     * 获取首页产品列表
+     *
+     * @return
+     */
+    public List<HashMap<String, Object>> selectIndexProductInfoList(@Param("size") Integer size);
+
+    /**
+     * 产品列表总数
+     *
+     * @param param
+     * @return
+     */
+    public Integer selectProductInfoListCountByParam(Map<String, Object> param);
+
+
+    /**
+     * 通过产品ID查找产品详情
+     *
+     * @param param
+     * @return
+     */
+    public DrProductInfo selectProductByPrimaryKey(Integer id);
+
+    /**
+     * 只修改已募集金额，剩余金额，产品状态
+     * 通过主键修改
+     *
+     * @param info DrProductInfo
+     */
+    public void updateProductSelective(DrProductInfo info);
+
+    /**
+     * 查询热推产品
+     *
+     * @return
+     */
+    public List<DrProductInfo> selectHotProductInfo();
+
+    /**
+     * 查询15天新手标
+     *
+     * @return
+     */
+    public List<DrProductInfo> selectFifteendaysProductInfo();
+
+    /**
+     * 查询活动产品
+     */
+    public DrProductInfo selectActivityProduct();
+
+    /**
+     * 通过PID获取产品详情（包括部分票据信息）
+     *
+     * @param id
+     * @return
+     */
+    public DrProductInfo selectProductDetailByPid(@Param(value = "id") Integer id);
+
+    /**
+     * 获取同期产品信息
+     *
+     * @param deadline
+     * @return
+     */
+    public List<DrProductInfo> selectAutoAddedProduct(String fullName);
+
+    /**
+     * 更新产品信息
+     */
+    public void updateDrProductInfo(DrProductInfo product);
+
+    List<Integer> selectHaveNewHand(Integer uid);
+
+    /**
+     * 获得产品类型.
+     *
+     * @return 产品类型列表
+     */
+    List<DrProductType> getTypeList();
+}

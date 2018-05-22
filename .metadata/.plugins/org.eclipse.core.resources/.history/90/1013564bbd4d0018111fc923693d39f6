@@ -1,0 +1,244 @@
+package com.dr.service.activity.impl;
+
+import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.dr.common.BaseResult;
+import com.dr.common.LotteryUtil;
+import com.dr.common.Utils;
+import com.dr.dao.activity.BusinessMemberLuckDrawTimesMapper;
+import com.dr.dao.activity.BusinessPrizeMapper;
+import com.dr.dao.activity.BusinessReceiveRecordDAO;
+import com.dr.dao.activity.DrMemberFavourableDAO;
+import com.dr.dao.member.DrMemberCrushDAO;
+import com.dr.dao.member.DrMemberDAO;
+import com.dr.dao.member.DrMemberMsgDAO;
+import com.dr.dao.product.DrProductInvestDAO;
+import com.dr.model.activity.BusinessMemberLuckDrawTimes;
+import com.dr.model.activity.BusinessReceiveRecord;
+import com.dr.model.activity.DrMemberFavourable;
+import com.dr.model.member.DrMember;
+import com.dr.model.member.DrMemberMsg;
+import com.dr.model.product.DrProductInvest;
+import com.dr.service.activity.BusinessReceiveRecordService;
+
+@Service
+@Transactional
+public class BusinessReceiveRecordServiceImpl implements BusinessReceiveRecordService {
+	
+	@Autowired
+	private BusinessReceiveRecordDAO businessReceiveRecordDAO;
+	@Autowired
+	private DrMemberDAO drMemberDAO;
+	@Autowired
+	private BusinessMemberLuckDrawTimesMapper businessMemberLuckDrawTimesMapper;
+	@Autowired
+	private BusinessPrizeMapper businessPrizeMapper;
+	@Autowired
+	private DrMemberFavourableDAO drMemberFavourableDAO;
+	@Autowired
+	private DrMemberMsgDAO drMemberMsgDAO;
+	@Autowired
+	private DrProductInvestDAO drProductInvestDAO;
+	@Autowired
+	private DrMemberCrushDAO drMemberCrushDAO;
+	
+	private Logger log = Logger.getLogger(this.getClass());
+	@Override
+	public List<Map<String, Object>> findBusinessReceiveRecordByUid(Integer uid) {
+		return businessReceiveRecordDAO.findBusinessReceiveRecordByUid(uid);
+	}
+
+	@Override
+	public BaseResult insert51LogtteryLog(DrMember member, String startDate, String endDate) throws Exception {
+		BaseResult br = new BaseResult();
+		Map<String,Object> map = new HashMap<>();
+		
+
+			// 计算用户的可用抽奖次数
+			Integer lotterynums = getLotterynums(member);
+			// 初始化抽奖次数记录表
+			BusinessMemberLuckDrawTimes businessMemberLuckDrawTimes = businessMemberLuckDrawTimesMapper
+					.findlotterylog(member.getUid());
+			if (businessMemberLuckDrawTimes == null) {// 第一次抽奖
+				businessMemberLuckDrawTimes = new BusinessMemberLuckDrawTimes();
+				businessMemberLuckDrawTimes.setAddTime(new Date());
+				businessMemberLuckDrawTimes.setTotalTimes(lotterynums);
+				businessMemberLuckDrawTimes.setUid(member.getUid());
+				businessMemberLuckDrawTimes.setUsedTimes(0);
+				businessMemberLuckDrawTimesMapper.insertBusinessMemberLuckDrawTimes(businessMemberLuckDrawTimes);
+			}
+			if (lotterynums <= businessMemberLuckDrawTimes.getUsedTimes()) {
+				br.setErrorCode("1003");
+				br.setErrorMsg("您的抽奖次数已用完！");
+				br.setSuccess(false);
+			} else {
+				// 查询所有的奖品
+				List<Map<String, Object>> businessPrizes = businessPrizeMapper.findBusinessPrize();
+				List<Double> rates = new ArrayList<Double>();
+				for (int i = 0; i < businessPrizes.size(); i++) {
+					rates.add( ((BigDecimal) businessPrizes.get(i).get("rate")).doubleValue());
+				}
+				Integer index = LotteryUtil.lottery(rates);
+				Map<String, Object> businessPrize = businessPrizes.get(index);// 抽中的奖品
+				int prizeId = (Integer) businessPrize.get("id");
+				map.put("prizeId", prizeId);
+				if(prizeId == 1){
+					br.setMsg("恭喜您，获得5元红包");
+				}
+				if(prizeId == 2){
+					br.setMsg("恭喜您，获得10元红包");
+				}
+				if(prizeId == 3){
+					br.setMsg("恭喜您，获得100元红包");
+				}
+				if(prizeId == 4){
+					br.setMsg("恭喜您，获得3G流量");
+				}
+				if(prizeId == 5){
+					br.setMsg("谢谢您的参与，看看下次手气怎么样");
+				}
+				if(prizeId == 6){
+					br.setMsg("恭喜您，100元话费");
+				}
+				if(prizeId == 7){
+					br.setMsg("恭喜您，300元京东卡");
+				}
+				if(prizeId == 8){
+					br.setMsg("恭喜您，获得256GIPhoneX一部");
+				}
+				int prizedType = (Integer) businessPrize.get("type");
+				BusinessReceiveRecord businessReceiveRecord = new BusinessReceiveRecord();
+				businessReceiveRecord.setPrizeId(prizeId);
+				businessReceiveRecord.setAddTime(new Date());
+				businessReceiveRecord.setUid(member.getUid());
+				// 判断用户获得的是哪类奖品 （type：0为红包，实时发放。type : 1为其他）
+				if (prizedType == 0) {
+					businessReceiveRecord.setStatus(1);// 1:已发货
+					businessReceiveRecord.setSendTime(new Date());
+					registeredGift(member.getUid(), prizeId);
+				} else {
+					businessReceiveRecord.setStatus(0);// 0:未发货
+					//businessReceiveRecord.setSendTime(new Date());
+				}
+				// 插入中奖记录表
+				businessReceiveRecordDAO.insertRecord(businessReceiveRecord);
+				br.setMap(map);
+				br.setSuccess(true);
+				// 更新用户抽奖次数
+				businessMemberLuckDrawTimesMapper.updateLotteryNums(member.getUid());
+			}
+		return br;
+	}
+
+	/**
+	 * 51抽奖送红包
+	 *
+	 * @param uid
+	 */
+	@Override
+	public void registeredGift(Integer uid, Integer id) {
+		DrMemberFavourable drMemberFavourable = new DrMemberFavourable();
+		List<DrMemberFavourable> drMemberFavourables = new ArrayList<>();
+		drMemberFavourable.setUid(uid);;
+		drMemberFavourable.setType(1);
+		drMemberFavourable.setName("51抽奖红包");;
+		drMemberFavourable.setProductDeadline(30);
+		drMemberFavourable.setStatus(0);
+		drMemberFavourable.setSource(0);
+		drMemberFavourable.setAddtime(new Date());
+		drMemberFavourable.setExpireDate(Utils.getDayNumOfDate(-90));
+		try {
+			if (id == 1) {
+				// 查询
+				// param.put("name", "5元红包");
+				// DrActivityParameter dap =
+				// drActivityParameterDAO.getDrActivityParameterByParam(param);
+				// param.put("code", dap.getCode());
+				drMemberFavourable.setAmount(new BigDecimal(5));
+				drMemberFavourable.setProfitAmount(new BigDecimal(0));
+				drMemberFavourable.setEnableAmount(new BigDecimal(500));
+				drMemberFavourables.add(drMemberFavourable);
+				drMemberFavourableDAO.batchInsert(drMemberFavourables);
+				DrMemberMsg msg = new DrMemberMsg(uid, 0, 1, "5元红包", new Date(), 1, 0, null);
+				drMemberMsgDAO.insertDrMemberMsg(msg);
+			}
+			if (id == 2) {
+				// 查询
+				// param.put("name", "5元红包");
+				// DrActivityParameter dap =
+				// drActivityParameterDAO.getDrActivityParameterByParam(param);
+				// param.put("code", dap.getCode());
+				drMemberFavourable.setAmount(new BigDecimal(10));
+				drMemberFavourable.setProfitAmount(new BigDecimal(0));
+				drMemberFavourable.setEnableAmount(new BigDecimal(1000));
+				drMemberFavourables.add(drMemberFavourable);
+				drMemberFavourableDAO.batchInsert(drMemberFavourables);
+				DrMemberMsg msg = new DrMemberMsg(uid, 0, 1, "10元红包", new Date(), 1, 0, null);
+				drMemberMsgDAO.insertDrMemberMsg(msg);
+			}
+			if (id == 3) {
+				// 查询
+				// param.put("name", "5元红包");
+				// DrActivityParameter dap =
+				// drActivityParameterDAO.getDrActivityParameterByParam(param);
+				// put("code", dap.getCode());
+				drMemberFavourable.setAmount(new BigDecimal(100));
+				drMemberFavourable.setProfitAmount(new BigDecimal(0));
+				drMemberFavourable.setEnableAmount(new BigDecimal(10000));
+				drMemberFavourables.add(drMemberFavourable);
+				drMemberFavourableDAO.batchInsert(drMemberFavourables);
+				DrMemberMsg msg = new DrMemberMsg(uid, 0, 1, "100元红包", new Date(), 1, 0, null);
+				drMemberMsgDAO.insertDrMemberMsg(msg);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * 获取用户的抽奖次数
+	 * 
+	 * @param member
+	 * @return
+	 */
+	public Integer getLotterynums(DrMember member) {
+		// 注册默认为1
+		int lotterynums = 1;
+		BigDecimal amount = new BigDecimal(0);
+		// 首投>=1000 抽奖次数为5
+		List<DrProductInvest> investAmounts = drProductInvestDAO.selectFirstInvestAmount(member.getUid());
+		if(!investAmounts.isEmpty()){
+			amount = investAmounts.get(0).getAmount();
+		}
+		// 未首投已充值 抽奖次数为3
+		int crushnums = drMemberCrushDAO.getDrMemberCrushByUid(member.getUid());
+		// 未首投未充值已认证 抽奖次数为2
+		member = drMemberDAO.selectByPrimaryKey(member.getUid());
+		if (amount.intValue() >= 1000) {
+			lotterynums = 5;
+			return lotterynums;
+		} 
+		if (crushnums != 0) {
+			lotterynums = 3;
+			return lotterynums;
+		}
+        if (member.getRealVerify() == 1) {
+			lotterynums = 2;
+			return lotterynums;
+		}
+        return lotterynums;
+	}
+
+}

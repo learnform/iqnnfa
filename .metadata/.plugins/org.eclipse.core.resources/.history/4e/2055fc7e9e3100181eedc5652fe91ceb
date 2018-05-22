@@ -1,0 +1,35 @@
+package iqnnfa;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.json.JSONObject;
+
+import cn.iqnnfa.model.AnxinSignRequestVo;
+import cn.iqnnfa.model.Person;
+import cn.iqnnfa.model.head;
+
+public class ForTest {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		Map map = new HashMap<String, Object>();
+		Person person = new Person();
+		person.setAddress("江西");
+		person.setEmail("sss");
+		person.setAnXinSignMobilePhone("11314545");
+		head he = new head();
+		he.setLocale("zh_cn");
+		he.setRetCode("1000");
+		he.setTxTime(new Date());
+		
+		AnxinSignRequestVo anxinSignRequestVo = new AnxinSignRequestVo();
+		anxinSignRequestVo.setPerson(person);
+		anxinSignRequestVo.setHead(he);
+		
+		
+		
+	}
+
+}

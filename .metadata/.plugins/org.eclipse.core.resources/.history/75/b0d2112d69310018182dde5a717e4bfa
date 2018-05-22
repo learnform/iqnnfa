@@ -1,0 +1,14 @@
+package cn.iqnnfa.model;
+
+public class AnxinSignRequestVo {
+	//
+	private Person person;
+	//
+	private BankCardInfo bankCardInfo;
+	//
+	private Integer notSendPwd;
+	//
+	private Integer isVerifyBankCard;
+	//
+	private Integer sealColor;
+}

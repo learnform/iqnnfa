@@ -1,0 +1,15 @@
+package com.dr.service.cpa;
+
+
+public interface DrChannelRewardPhonedataService {
+
+    /**
+     * 首次绑卡、投资赠送流量业务
+     */
+    void processAwardRewardPhoneData() throws Exception;
+    
+    /**
+     * 用户首次绑卡用户查询
+     */
+    
+}

@@ -1,0 +1,113 @@
+package com.dr.controller.activity;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.dr.common.BaseResult;
+import com.dr.common.ConfigUtil;
+import com.dr.common.PageInfo;
+import com.dr.dao.activity.DrLuckDrawRecordDAO;
+import com.dr.model.member.DrMember;
+import com.dr.service.activity.BusinessReceiveRecordService;
+import com.dr.service.activity.DrLuckDrawRecordService;
+import com.dr.service.activity.DrLuckDrawService;
+
+@Controller
+@RequestMapping("/luckDraw")
+public class LuckDrawController {
+	private Logger log = Logger.getLogger(this.getClass());
+	
+	@Autowired
+	private DrLuckDrawService luckDrawService;
+	@Autowired
+	private DrLuckDrawRecordService luckDrawRecordService;
+	@Autowired
+	private DrLuckDrawRecordDAO luckDrawRecordDAO;
+	@Autowired
+	private BusinessReceiveRecordService businessReceiveRecordService;
+	/**
+	 * 我的奖品领取记录接口
+	 * @param pi
+	 * @param req
+	 * @param uid
+	 * @return
+	 */
+	@RequestMapping(value = "/record", method = RequestMethod.POST)
+	@ResponseBody
+	public BaseResult record(PageInfo pi,HttpServletRequest req,Integer uid){
+		BaseResult br = new BaseResult();
+		Map<String, Object> map = new HashMap<String, Object>();
+		pi = this.luckDrawRecordService.selectDrawRecord(pi,uid);
+		map.put("page", pi);
+		br.setSuccess(true);
+		br.setMap(map);
+		return br;
+	}
+	/**
+	 * 进入转盘抽奖页面
+	 * @param req
+	 * @param uid
+	 * @return
+	 */
+	@RequestMapping(value = "/detial", method = RequestMethod.POST)
+	@ResponseBody
+	public BaseResult detial(HttpServletRequest req,Integer uid){
+		BaseResult br = this.luckDrawService.detial(uid);
+		return br;
+	}
+	/**
+	 * 抽奖
+	 * @param req
+	 * @param uid
+	 * @return
+	 */
+	@RequestMapping(value = "/getLuckDraw", method = RequestMethod.POST)
+	@ResponseBody
+	public BaseResult getLuckDraw(HttpServletRequest req,Integer uid){
+		BaseResult luckDraw = this.luckDrawService.doLuckDraw(uid);
+//		redisClient.lpush("draw_list", String.valueOf(uid));
+		return luckDraw;
+	}
+	
+	/**
+	 * 轮播中奖信息
+	 * @param req
+	 * @return
+	 */
+	@RequestMapping(value = "/getRecordList")
+	@ResponseBody
+	public List<Map<String, Object>> getRecordList(HttpServletRequest req){
+		List<Map<String, Object>> recordList = this.luckDrawRecordDAO.selectDrawRecordList();
+		return recordList;
+	}
+	
+	/**
+	 * 51活动用户中奖信息
+	 * @param req
+	 * @return
+	 */
+	@RequestMapping(value = "/get51RecordList")
+	@ResponseBody
+	public BaseResult get51RecordList(HttpServletRequest req,@RequestBody Map<String, Object> param){
+		BaseResult br = new BaseResult();
+		Map<String, Object> map = new HashMap<String, Object>();
+		DrMember m = (DrMember)req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+		Integer uid = (Integer) param.get("uid");
+		List<Map<String, Object>> recordList = businessReceiveRecordService.findBusinessReceiveRecordByUid(uid);
+		map.put("recordList", recordList);
+		br.setMap(map);
+		br.setSuccess(true);
+		return br;
+	}
+}

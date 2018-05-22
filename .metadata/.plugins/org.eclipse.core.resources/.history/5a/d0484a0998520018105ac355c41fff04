@@ -1,0 +1,88 @@
+package com.dr.common;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
+
+import com.trilead.ssh2.Connection;
+import com.trilead.ssh2.Session;
+
+public class SshSendUtil {
+
+	private static Connection conn;
+	private static final String ipAddr = "192.168.1.20";
+	private static final String charset = Charset.defaultCharset().toString();
+	private static final String userName = "ipad";
+	private static final String password = "ipad1234";
+
+	public static boolean login() throws IOException {
+		conn = new Connection(ipAddr);
+		conn.connect(); // 连接
+		return conn.authenticateWithPassword(userName, password); // 认证
+	}
+
+	public static String exec(String cmds) {
+		InputStream in = null;
+		String result = "";
+		try {
+			if (login()) {
+				System.out.println("ssh 登陆成功");
+				Session session = conn.openSession(); // 打开一个会话
+				session.execCommand(cmds);
+
+				in = session.getStdout();
+				result = processStdout(in, charset);
+				session.close();
+				conn.close();
+			} else {
+				System.out.println("ssh 登陆失败");
+			}
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		return result;
+	}
+
+	public static String processStdout(InputStream in, String charset) {
+
+		byte[] buf = new byte[1024];
+		StringBuffer sb = new StringBuffer();
+		try {
+			while (in.read(buf) != -1) {
+				sb.append(new String(buf, charset));
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return sb.toString();
+	}
+
+	public static boolean add(String IP) {
+		String result = exec("/opt/scripts/addip.sh " + IP);
+		if (result.indexOf("add") != -1) {
+			return true;
+		}
+		return false;
+	}
+
+	public static boolean del(String IP) {
+		String result = exec("/opt/scripts/delip.sh " + IP);
+		if (result.indexOf("del") != -1) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+
+		// String result1 = exec("/opt/scripts/addip.sh 192.168.1.25");
+		// String result2 = exec("/opt/scripts/delip.sh 192.168.1.25");
+		// System.out.println(result1);
+		// System.out.println(result2);
+
+	}
+
+}

@@ -1,0 +1,77 @@
+package com.dr.service.member;
+
+import java.util.List;
+import java.util.Map;
+
+import com.dr.model.cpa.DrCpaDeviceRecord;
+import com.dr.model.member.DrMember;
+import com.dr.model.member.DrMemberBaseInfo;
+
+public interface DrMemberService {
+
+
+    public void insertMember(DrMemberBaseInfo baseinfo, DrMember member, Integer rid, DrCpaDeviceRecord cpa) throws Exception;
+
+    /**
+     * 获取要登录的用户
+     *
+     * @return
+     */
+    public DrMember selectDrMemberByMobilephone(String mobilephone);
+
+    /**
+     * 判断手机号码是否存在
+     *
+     * @param mobilephone
+     * @return true 存在 false不存在
+     */
+    public boolean isExistsMobilphone(String mobilephone);
+
+
+    /**
+     * 修改用户信息
+     *
+     * @param DrMember
+     * @throws Exception
+     */
+    public void update(DrMember DrMember) throws Exception;
+
+    /**
+     * 根据用户ID获取用户
+     *
+     * @param uid
+     * @return
+     */
+    public DrMember selectByPrimaryKey(Integer uid);
+
+    /**
+     * 获取用户待还和待收笔数
+     *
+     * @param map
+     * @return
+     */
+    public Map<String, Integer> queryCollectCountAndStayCount(Map<String, Object> map);
+
+    /**
+     * 查询推荐人
+     *
+     * @param str 推荐码或者手机号码查询
+     * @return
+     */
+    public DrMember selectDrMemberByMobileOrRecomm(String str);
+
+    /**
+     * 查询用户是否参加活动
+     *
+     * @param uid
+     * @return List大于0表示用户可以参加活动
+     */
+    public List<DrMember> selectMemberIsJoinActivity(Integer uid);
+
+    /**
+     * 送红包.
+     *
+     * @param uid
+     */
+    void registeredGift(Integer uid);
+}

@@ -1,0 +1,15 @@
+package iqnnfacloud;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+
+public class testMain {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		int num = Utils.compare_date1(Utils.getparseDate(new Date(),"yyyy-MM-dd"),"2018-4-11");
+		System.out.println(num);
+		
+	}
+}

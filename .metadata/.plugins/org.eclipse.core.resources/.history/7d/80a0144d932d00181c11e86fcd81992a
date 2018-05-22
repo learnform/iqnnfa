@@ -1,0 +1,274 @@
+package com.dr.controller.product;
+
+import com.alibaba.fastjson.JSON;
+import com.dr.common.*;
+import com.dr.model.member.DrMember;
+import com.dr.model.member.DrMemberFunds;
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductPic;
+import com.dr.service.activity.DrActivityParameterService;
+import com.dr.service.claims.DrClaimsProjectService;
+import com.dr.service.member.DrMemberFundsService;
+import com.dr.service.member.DrMemberService;
+import com.dr.service.product.*;
+import com.dr.service.system.impl.RedisClientTemplate;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import javax.accessibility.Accessible;
+import javax.servlet.http.HttpServletRequest;
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+
+@RequestMapping("/product")
+@Controller
+public class ProductController {
+    private Logger log = Logger.getLogger(this.getClass());
+
+    @Autowired
+    private DrProductInfoService drProductInfoService;
+    @Autowired
+    private DrProductInvestService drProductInvestService;
+    @Autowired
+    private DrMemberFundsService drMemberFundsService;
+    @Autowired
+    private DrProductPicService drProductPicService;
+    @Autowired
+    private DrActivityParameterService drActivityParameterService;
+    @Autowired
+    private DrProductExtendService drProductExtendService;
+    @Autowired
+    private RedisClientTemplate redisClientTemplate;
+    @Autowired
+    private DrClaimsProjectService drClaimsProjectService;
+    @Autowired
+    private DrProductRepairService drProductRepairService;
+    @Autowired
+    private DrMemberService drMemberService;
+
+    /**
+     * 理财列表
+     *
+     * @param req
+     * @param params
+     * @return
+     */
+    @RequestMapping("/productList")
+    @ResponseBody
+    public String productList(HttpServletRequest req, @RequestBody Map<String, Object> params, PageInfo pi) {
+        BaseResult br = new BaseResult();
+        try {
+            Utils.verification(params.get("order"),"order 不能为空");
+            Utils.verification(params.get("pageOn"),"pageOn 不能为空");
+            Utils.verification(params.get("pageSize"),"pageSize 不能为空");
+
+            Utils.getObjectFromMap(pi, params);
+            br = drProductInfoService.selectProductInfoByParams(params, pi);
+            br.setSuccess(true);
+        }
+        catch (Exception e) {
+            log.error("票据列表获取失败", e);
+            br.setErrorMsg("9999");
+            br.setErrorMsg(e.getMessage());
+            br.setSuccess(false);
+        }
+        return JSON.toJSONString(br);
+    }
+
+    @RequestMapping(value = "/detail", method = RequestMethod.POST)
+    @ResponseBody
+    public String detail(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+        List<String> pList = new ArrayList<String>() {{
+            add("公司工商信息");
+            add("营业执照");
+            add("开户许可证");
+            add("法人及股东身份证");
+            add("公司章程");
+            add("经营场所实地认证");
+        }};
+        BaseResult br = new BaseResult();
+        DrMember m = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+        String pid = Utils.isObjectEmpty(param.get("id")) ? null : param.get("id").toString();//产品ID
+        String type = Utils.isObjectEmpty(param.get("type")) ? null : param.get("type").toString();
+        DrProductInfo productInfo = null;//产品信息
+        DrMemberFunds funds = null;//资金信息
+        try {
+            if (!"4".equals(type) && Utils.isObjectEmpty(pid)) {
+                throw new Exception("非法请求");
+            }
+            if (pid == null && "4".equals(type)) {//CPA产品页面
+                productInfo = drProductInfoService.selectActivityProduct();
+            } else {
+                productInfo = drProductInfoService.selectProductDetailByPid(Integer.parseInt(pid));
+            }
+            if (Utils.isObjectEmpty(productInfo) || "5689".indexOf(productInfo.getStatus() + "") == -1) {
+                br.setSuccess(false);
+                br.setErrorMsg("产品不存在或已下架");
+                br.setErrorCode("1001");
+                return JSON.toJSONString(br);
+            }
+            param.clear();
+            if (Utils.isObjectNotEmpty(m)) {
+                funds = drMemberFundsService.selectDrMemberFundsByUid(m.getUid());
+                param.put("tpwdFlag", m.getTpassWord() == null ? false : true);
+            }
+            //读取安选和优选
+            if (productInfo.getType() == 2 || productInfo.getType() == 3 || productInfo.getType() == 5 ||
+                    productInfo.getType() == 6 || productInfo.getType() == 8) {
+                List<DrProductPic> listPic = drProductPicService.selectProductPicByPid(Integer.parseInt(pid));
+                param.put("picList", listPic);
+                List<String> projectList = drClaimsProjectService.selectListProjectByPid(Integer.parseInt(pid));
+                param.put("projectList", !Utils.isEmptyList(projectList) ? projectList : pList);
+            }
+            if (productInfo.getIsRepair() == 1) {//是否有满足当前标的的补标配置
+                Map<String, Object> map = new HashMap<String, Object>();
+                map.put("deadline", productInfo.getDeadline());
+                map.put("raiseDeadline", (productInfo.getEstablish().getTime() - Utils.getNowTime().getTime()) / 1000 / 3600);
+                map.put("amount", productInfo.getSurplusAmount());
+                param.put("repair", drProductRepairService.getDrProductRepairByParam(map));
+
+            }
+            if (Utils.isObjectNotEmpty(productInfo.getExpireDate())) {
+                productInfo.setExpireDate(Utils.getDayNumOfAppointDate(productInfo.getExpireDate(), 0));
+            }
+            if (m != null && m.getUid() != null) {
+                param.put("haveNewHand", drProductInfoService.selectHaveNewHand(m.getUid()));
+            }
+
+            if (m != null && m.getUid() != null && productInfo.getDeadline() == ConfigUtil.PRODUCT_PERIOD) {
+                param.put("haveFifteendaysInvest", drProductInfoService.selectHaveFifteendaysInvest(m.getUid()));
+            }
+
+            param.put("info", productInfo);
+            param.put("funds", funds);
+            param.put("extendInfos", drProductExtendService.getDrProductExtendByPid(productInfo.getId()));
+            param.put("sysTime", new Date());
+            br.setMap(param);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("详情获取失败,接收到的参数：" + JSON.toJSONString(param), e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+        }
+        return JSON.toJSONString(br);
+    }
+
+    @RequestMapping(value = "/investList", method = RequestMethod.POST)
+    @ResponseBody
+    public String investList(HttpServletRequest req, PageInfo pi, @RequestBody Map<String, Object> param) {
+        BaseResult br = new BaseResult();
+        Utils.getObjectFromMap(pi, param);
+        try {
+            param.put("statuses", new Integer[]{0, 1, 3});
+            br = drProductInvestService.selectInvestLogByParamForProduct(param, pi);
+            br.setSuccess(true);
+        } catch (Exception e) {
+            log.error("投资记录获取失败", e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+        }
+        return JSON.toJSONString(br);
+    }
+
+    @RequestMapping(value = "/invest", method = RequestMethod.POST)
+    @ResponseBody
+    public String invest(HttpServletRequest req, @RequestBody Map<String, Object> param) {
+        BaseResult br = new BaseResult();
+//		Map<String,Object> map = new HashMap<String, Object>();
+        DrMember loginMember = (DrMember) req.getSession().getAttribute(ConfigUtil.FRONT_LOGIN_USER);
+        Object pid = param.get("pid");
+        try {
+            Integer errorNums = StringUtils.isBlank(redisClientTemplate.get("error.tpwd.uid." + loginMember.getUid())) ? 0 :
+                    Integer.parseInt(redisClientTemplate.get("error.tpwd.uid." + loginMember.getUid()));//密码错误次数
+            if (Utils.isObjectEmpty(loginMember)) {
+                br.setSuccess(false);
+                br.setErrorCode("1009");//用户未登陆
+                return JSON.toJSONString(br);
+            }
+            if (errorNums > 2) {
+                br.setSuccess(false);
+                br.setErrorCode("2001");
+                return JSON.toJSONString(br);
+            }
+            boolean lockFlag = redisClientTemplate.tryLock("product.id." + pid, 3, TimeUnit.SECONDS, true);
+            if (lockFlag) {
+                BigDecimal amount = new BigDecimal(String.valueOf(param.get("amount")));
+                DrProductInfo info = (DrProductInfo) SerializeUtil.unserialize(redisClientTemplate.get(("product.info." + pid).getBytes()));
+                if (Utils.isObjectEmpty(info)) {
+                    info = drProductInfoService.selectProductByPrimaryKey(Integer.parseInt(pid.toString()));
+                    if (info.getStatus() == 5) {
+                        redisClientTemplate.setex(("product.info." + pid).getBytes(), 600, SerializeUtil.serialize(info));
+                    }
+                }
+                boolean investFlag = false;
+                Map<String, Object> map = new HashMap<String, Object>();
+                map.put("uid", loginMember.getUid());
+                BigDecimal investAmount = drProductInvestService.selectAllProductInvest(map);//判断投资金额是否为0
+                if (investAmount.compareTo(BigDecimal.ZERO) == 1) {
+                    investFlag = true;
+                }
+                br = drProductInfoService.saveInvest(loginMember, info, param);
+                //此代码转移到service层
+//				map.put("investTime", new Date());
+//				br.setMap(map);
+                if (info.getType() != 1 && br.isSuccess()) {//新手标投资不参与送红包活动
+                    try {
+                        boolean flag = false;
+                        if (investFlag) {
+//							List favourableAll = new ArrayList();
+//							List favourableList = new ArrayList();
+                            flag = drActivityParameterService.valentineActivity(loginMember, info.getDeadline(), amount);
+//							favourableList.add("您已获得");
+//							favourableList.add(totalFavourable);
+//							favourableList.add("投资红包！");
+//							favourableAll.add(favourableList);
+                            if (redisClientTemplate.exists("totalFavourable.uid:" + loginMember.getUid())) {
+                                BigDecimal totalFavourable = new BigDecimal(redisClientTemplate.get("totalFavourable.uid:" + loginMember.getUid()));
+                                Map map1 = br.getMap();
+                                map1.put("totalFavourable", totalFavourable);
+                                redisClientTemplate.del("totalFavourable.uid:" + loginMember.getUid());
+                            }
+                        }
+//						drProductInvestService.sendTicket(loginMember, amount);
+                        br.setFlag(flag);
+                    } catch (Exception e) {
+                        br.setFlag(false);
+                        log.error("投资活动", e);
+                    }
+                }
+            } else {
+                br.setErrorCode("1011");//投资失败
+                return JSON.toJSONString(br);
+            }
+        } catch (Exception e) {
+            log.error("投标失败,接收到的参数：" + JSON.toJSONString(param), e);
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+        }
+        return JSON.toJSONString(br);
+    }
+
+    @RequestMapping(value = "/getType", method = RequestMethod.POST)
+    @ResponseBody
+    public String getType() {
+        try {
+            HashMap<String, Object> result = new HashMap<>();
+            result.put("map", drProductInfoService.getTypeList());
+            result.put("success", true);
+            return JSON.toJSONString(result);
+        } catch (Exception ex) {
+            log.error("获得产品类型错误", ex);
+            BaseResult br = new BaseResult();
+            br.setSuccess(false);
+            br.setErrorCode("9999");
+            return JSON.toJSONString(br);
+        }
+    }
+}

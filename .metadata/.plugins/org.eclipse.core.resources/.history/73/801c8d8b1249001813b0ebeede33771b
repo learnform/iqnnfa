@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.dr.dao.member.DrMemberDAO">
+	<resultMap id="DrMemberResult" type="com.dr.model.member.DrMember">
+		<result column="uid" property="uid" jdbcType="INTEGER" />
+		<result column="password" property="passWord" jdbcType="CHAR" />
+		<result column="tpassword" property="tpassWord" jdbcType="CHAR" />
+		<result column="photo" property="photo" jdbcType="VARCHAR" />
+		<result column="isblack" property="isBlack" jdbcType="INTEGER" />
+		<result column="regip" property="regIp" jdbcType="CHAR" />
+		<result column="regdate" property="regDate" jdbcType="TIMESTAMP" />
+		<result column="lastloginip" property="lastLoginIp" jdbcType="CHAR" />
+		<result column="lastLoginTime" property="lastLoginTime"
+			jdbcType="TIMESTAMP" />
+		<result column="type" property="type" jdbcType="INTEGER" />
+		<result column="status" property="status" jdbcType="INTEGER" />
+		<result column="regfrom" property="regFrom" jdbcType="INTEGER" />
+		<result column="mobileverify" property="mobileVerify" jdbcType="INTEGER" />
+		<result column="realverify" property="realVerify" jdbcType="INTEGER" />
+		<result column="loginverify" property="loginVerify" jdbcType="INTEGER" />
+		<result column="emailverify" property="emailVerify" jdbcType="INTEGER" />
+		<result column="recommCodes" property="recommCodes" jdbcType="CHAR" />
+		<result column="mobilePhone" property="mobilephone" jdbcType="VARCHAR" />
+		<result column="email" property="email" jdbcType="VARCHAR" />
+		<result column="realname" property="realName" jdbcType="CHAR" />
+		<result column="idcards" property="idCards" jdbcType="VARCHAR" />
+		<result column="birthdate" property="birthdate" jdbcType="TIMESTAMP" />
+		<result column="balance" property="balance" jdbcType="DECIMAL" />
+		<result column="freeze" property="freeze" jdbcType="DECIMAL" />
+		<result column="crushcount" property="crushCount" jdbcType="DECIMAL" />
+		<result column="carrycount" property="carryCount" jdbcType="DECIMAL" />
+		<result column="investAmount" property="investAmount" jdbcType="DECIMAL" />
+		<result column="toFrom" property="toFrom" jdbcType="VARCHAR" />
+
+		<result column="sex" property="sex" jdbcType="INTEGER" />
+	</resultMap>
+	<select id="selectByPrimaryKey" resultMap="DrMemberResult"
+		parameterType="com.dr.model.member.DrMember">
+		select m.uid, m.password, m.tpassword, m.photo, m.isblack,m.toFrom,
+		m.regip, m.regdate, m.lastloginip, m.lastlogintime, m.type, m.status,
+		m.regfrom, m.mobileverify, m.realverify, m.loginverify, m.emailverify,
+		m.recommCodes,
+		m.mobilePhone,b.email,b.realname,b.birthdate,b.idcards,b.sex
+		from dr_member m left join
+		dr_member_base_info b on m.uid=b.uid
+		where m.uid = #{uid:INTEGER}
+	</select>
+
+	<select id="isExistsMobilphone" resultType="java.lang.Integer">
+		select count(1) from dr_member where mobilephone = #{mobilephone}
+	</select>
+
+	<select id="selectDrMemberByUid" resultMap="DrMemberResult"
+		parameterType="java.lang.Integer">
+		select m.uid, m.password, m.tpassword, m.photo, m.isblack,
+		m.regip, m.regdate, m.lastloginip, m.lastlogintime, m.type, m.status,
+		m.regfrom, m.mobileverify, m.realverify, m.loginverify, m.emailverify,
+		m.recommCodes
+		from dr_member m
+		where m.uid = #{uid}
+	</select>
+
+	<insert id="insertDrMember" useGeneratedKeys="true" keyProperty="uid"
+		parameterType="com.dr.model.member.DrMember">
+		insert into dr_member (mobilephone, password, tpassword, isblack,
+		regdate,status, mobileverify, realverify, loginverify,regFrom,
+		emailverify,level, recommCodes, toFrom)
+		values (#{mobilephone}, #{passWord:CHAR}, #{tpassWord:CHAR},
+		#{isBlack:INTEGER},
+		#{regDate:TIMESTAMP}, #{status:INTEGER},
+		#{mobileVerify:INTEGER}, #{realVerify:INTEGER},
+		#{loginVerify:INTEGER}, #{regFrom}, #{emailVerify:INTEGER},
+		#{level:INTEGER},#{recommCodes:CHAR},#{toFrom:VARCHAR})
+	</insert>
+
+	<update id="updateByPrimaryKey" parameterType="com.dr.model.member.DrMember">
+		update dr_member
+		<set>
+			<if test="passWord != null">password = #{passWord:CHAR},</if>
+			<if test="tpassWord != null">tpassword = #{tpassWord:CHAR},</if>
+			<if test="photo != null">photo = #{photo:CHAR},</if>
+			<if test="isBlack != null">isblack = #{isBlack:CHAR},</if>
+			<if test="regIp != null">regip = #{regIp:CHAR},</if>
+			<if test="regDate != null">regdate = #{regDate:TIMESTAMP},</if>
+			<if test="lastLoginIp != null">lastloginip = #{lastLoginIp:CHAR},</if>
+			<if test="lastLoginTime != null">lastLoginTime = #{lastLoginTime:TIMESTAMP},</if>
+			<if test="type != null">type = #{type:INTEGER},</if>
+			<if test="userKy != null">USER_KY = #{userKy:INTEGER},</if>
+			<if test="status != null">status = #{status:INTEGER},</if>
+			<if test="regFrom != null">regfrom = #{regFrom:INTEGER},</if>
+			<if test="mobileVerify != null">mobileverify = #{mobileVerify:INTEGER},</if>
+			<if test="realVerify != null">realverify = #{realVerify:INTEGER},</if>
+			<if test="loginVerify != null">loginverify = #{loginVerify:INTEGER},</if>
+			<if test="emailVerify != null">emailverify = #{emailVerify:INTEGER},</if>
+			<if test="recommCodes != null">recommCodes = #{recommCodes:CHAR},</if>
+			<if test="level != null">level = #{level:INTEGER},</if>
+		</set>
+		where uid = #{uid:INTEGER}
+	</update>
+
+	<select id="selectDrMemberByMobilephone" resultMap="DrMemberResult">
+		SELECT
+		m.uid,
+		m.PASSWORD,
+		m.tpassword,
+		m.photo,
+		m.STATUS,
+		m.toFrom,
+		m.regfrom,
+		m.mobileverify,
+		m.realverify,
+		m.loginverify,
+		m.emailverify,
+		m.recommCodes,
+		m.regdate,
+		m.mobilePhone,
+		b.email,
+		b.realname,
+		b.idcards,
+		b.birthdate,
+		b.sex,
+		CASE WHEN UNIX_TIMESTAMP( m.regdate ) * 1000 <![CDATA[ < ]]>
+		#{releaseTime} THEN 1 ELSE 0 END AS "attribute"
+		FROM
+		dr_member m
+		LEFT JOIN dr_member_base_info b ON m.uid = b.uid
+		WHERE
+		m.mobilephone = #{loginId}
+
+	</select>
+
+	<!-- 查询被用户推荐注册人的总数 -->
+	<select id="selectRecommRegSum" parameterType="Integer"
+		resultType="Integer">
+		select count(1)
+		from dr_member m
+		where m.recommCodes = (select r.code from dr_member_recommcode r where
+		uid =#{uid}
+		);
+	</select>
+
+	<select id="queryCollectCountAndStayCount" resultType="java.util.HashMap"
+		parameterType="java.util.HashMap">
+		SELECT ifnull(ta.stayCount,0) as stayCount,
+		ifnull(SUM(tt.collectCount),0) AS collectCount
+		FROM (SELECT ifnull(COUNT(1),0) AS stayCount
+		FROM dr_loan_repayment
+		WHERE uid = #{uid}
+		AND DATE_FORMAT(shouldtime, '%Y-%m-%d') <![CDATA[ >= ]]>
+		DATE_FORMAT(CURDATE(), '%Y-%m-%d')
+		AND DATE_FORMAT(shouldtime, '%Y-%m-%d') <![CDATA[ <= ]]>
+		#{date}
+		) ta, (SELECT COUNT(1) AS collectCount
+		FROM dr_loan_repayment_info yi LEFT JOIN dr_loan_repayment yr ON yi.rid =
+		yr.rid
+		WHERE yi.uid = #{uid}
+		AND yi.shouldbj <![CDATA[ <> ]]>
+		yi.factbj
+		AND yi.shouldlx <![CDATA[ <> ]]>
+		yi.factlx
+		AND DATE_FORMAT(yr.shouldtime, '%Y-%m-%d') <![CDATA[ >= ]]>
+		DATE_FORMAT(CURDATE(), '%Y-%m-%d')
+		AND DATE_FORMAT(yr.shouldtime, '%Y-%m-%d') <![CDATA[ <= ]]>
+		#{date}
+		UNION ALL
+		SELECT COUNT(1) AS collectCount
+		FROM dr_financial_invest_payment
+		WHERE uid = #{uid}
+		AND (factlx IS NULL
+		OR shouldlx <![CDATA[ <> ]]>
+		factlx)
+		AND DATE_FORMAT(payTime, '%Y-%m-%d') <![CDATA[ >= ]]>
+		DATE_FORMAT(CURDATE(), '%Y-%m-%d')
+		AND DATE_FORMAT(payTime, '%Y-%m-%d') <![CDATA[ <= ]]>
+		#{date}
+		UNION ALL
+		SELECT COUNT(1) AS collectCount
+		FROM dr_newhand_bid
+		WHERE STATUS = 0
+		AND uid = #{uid}
+		AND DATE_FORMAT(expiration_time, '%Y-%m-%d') <![CDATA[ <= ]]>
+		#{date}
+		) tt
+	</select>
+	<select id="selectDrMemberByMobileOrRecomm" resultType="com.dr.model.member.DrMember"
+		parameterType="java.lang.String">
+		select * from dr_member where mobilephone = #{str} or recommCodes = #{str}
+	</select>
+
+	<select id="selectMemberIsJoinActivity" resultType="com.dr.model.member.DrMember">
+		select tofrom from dr_member m
+		where uid=#{uid} and exists (select `code` from dr_channel_info where
+		isParticipation=0 and INSTR(toFrom,code)=1
+		)
+	</select>
+	<select id="selectMemberIsHasQualification" resultType="com.dr.model.member.DrMember">
+		select aa.uid from (
+		SELECT
+		dm.uid,dm.toFrom,(select
+		LOCATE(info.code,dm.toFrom) from dr_channel_info info where
+		LOCATE(info.code,dm.toFrom)>0 AND info.isParticipation=1 limit 0,1) as num
+		FROM
+		dr_member dm where
+		dm.uid=#{uid} 
+		and DATE_FORMAT(dm.regdate, '%Y-%m-%d')  <![CDATA[ >= ]]> DATE_FORMAT(#{startDate},'%Y-%m-%d')
+		AND DATE_FORMAT(dm.regdate,'%Y-%m-%d')  <![CDATA[ <= ]]> DATE_FORMAT(#{endDate},'%Y-%m-%d')) as aa where aa.num is null
+	</select>
+</mapper>

@@ -1,0 +1,39 @@
+package test;
+
+import java.util.HashMap;
+import java.util.Objects;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.thirdparty.data.HttpResponseEntity;
+
+public class WpsTest {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+
+	}
+	
+	 public boolean callbackReward(final String userId, final String extra, final String type, final String phone, final String key) {
+	        final String url = URL + "/task/api/reward";
+	        final Integer size = 12;
+	        final HashMap<String, Object> parameters = new HashMap<>(size);
+	        final String succeed = "ok";
+	        parameters.put("userid", userId);
+	        parameters.put("offer_type", type);
+	        parameters.put("pass", getSignature(userId + type + key));
+	        parameters.put("extra", extra);
+	        parameters.put("mobile", phone);
+	        HttpResponseEntity responseEntity = post(url, parameters);
+	        if (responseEntity.getSucceed()) {
+	            final String result = responseEntity.getBodyString();
+	            JSONObject object = JSON.parseObject(result);
+	            if (Objects.equals(object.get("result"), succeed)) {
+	                return true;
+	            }
+	        }
+	        logger.error("调用WPS接口错误,响应报文::" + responseEntity.getBodyString());
+	        return false;
+	    }    
+
+}

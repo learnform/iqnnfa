@@ -1,0 +1,31 @@
+package cn.iqnnfa;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import cn.iqnnfa.model.DrMember;
+import cn.iqnnfa.service.IndexService;
+
+@RestController
+//@EnableConfigurationProperties({ConfiguraBean.class,User.class})
+public class IndexController {
+	
+	//@Value("${my.name}")
+	private String name;
+	//@Value("${my.age}")
+	private String age;
+	
+	@Autowired
+	private IndexService indexService;
+	
+	@RequestMapping(value="/findMemberByUid")
+	public String findMemberByUid(){
+		Integer uid = 1203;
+		DrMember drMember = indexService.findMemberByUid(uid);
+		//System.out.println(drMember.toString());
+		return "没有我";
+	}
+}

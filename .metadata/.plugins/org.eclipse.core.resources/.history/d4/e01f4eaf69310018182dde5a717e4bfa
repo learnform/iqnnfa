@@ -1,0 +1,10 @@
+package cn.iqnnfa.model;
+
+import java.util.Date;
+
+public class head {
+	//交易时间：yyyyMMddHHmmss
+	private Date txTime;
+	//返回代码：60000000
+	private String retCode;
+}

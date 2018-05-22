@@ -1,0 +1,247 @@
+package com.dr.common;
+
+//package com.interview.main;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+
+/*
+ * 文件名 ： MD5Util.java
+ * 创建者 ： 朱健
+ * 维护人 ： 朱健
+ * 创建时间 ： 2011-2-18 14:08:48
+ * 功能描述 ： MD5字符串处理
+ */
+public class MD5Util
+{
+	private static final char	hexDigits[]	= 
+	{ 
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'			
+	};
+
+	/**
+	 * 返回MD5字符串。32位
+	 * 
+	 * @param source
+	 * @return
+	 */
+	public static String getMD5(String source)
+	{
+		if (source == null)
+		{
+			return null;
+		}
+		return getMD5(source.getBytes());
+	}
+
+	/**
+	 * 返回MD5字符串。
+	 * 
+	 * @param source
+	 * @return md5字符串
+	 */
+	public static String getMD5(byte[] source)
+	{
+		String s = null;
+		try
+		{
+			MD5 md = new MD5();
+			md.update(source);
+			byte tmp[] = new byte[16];
+			md.md5final(tmp);
+			
+			char str[] = new char[16 * 2];
+			int k = 0;
+			for (int i = 0; i < 16; i++)
+			{
+				byte byte0 = tmp[i];
+				str[k++] = hexDigits[byte0 >>> 4 & 0xf];
+				str[k++] = hexDigits[byte0 & 0xf];
+			}
+			s = new String(str);
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		return s;
+	}
+
+	public static String getMD5(InputStream in)
+	{
+		try
+		{
+			MD5 md = new MD5();
+			byte[] buffer = new byte[8192];
+			int len;
+			while ((len = in.read(buffer)) != -1)
+			{
+				md.update(buffer, len);
+			}
+			byte tmp[] = new byte[16];
+			md.md5final(tmp);
+			
+			char str[] = new char[16 * 2];
+			int k = 0;
+			for (int i = 0; i < 16; i++)
+			{
+				byte byte0 = tmp[i];
+				str[k++] = hexDigits[byte0 >>> 4 & 0xf];
+				str[k++] = hexDigits[byte0 & 0xf];
+			}
+			return new String(str);
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		return null;
+	}
+	/**
+	 * 根据文件生成MD5
+	 * 
+	 * @param file
+	 *            文件
+	 * @return md5字符串
+	 */
+	public static String getMD5(File file)
+	{
+		String s = null;
+		if (file == null || !file.isFile())
+		{
+			return s;
+		}
+		try
+		{
+			FileInputStream fin = new FileInputStream(file);
+			s = getMD5(fin, file.getName());
+			fin.close();
+		}
+		catch (Exception e)
+		{
+		}
+		return s;
+	}
+
+	/**
+	 * 根据文件流生成MD5
+	 * 
+	 * @param fin
+	 *            文件流
+	 * @return md5字符串
+	 */
+	public static String getMD5(InputStream fin, String fileName)
+	{
+		if (fin == null)
+		{
+			return "";
+		}
+		try
+		{
+			MD5 md = new MD5();
+			
+			md.update(fileName.getBytes());
+			byte[] arr = new byte[1024];
+			int len = -1;
+			while ((len = fin.read(arr)) >= 0)
+			{
+				md.update(arr, 0, len);
+			}
+			
+			byte tmp[] = new byte[16];
+			md.md5final(tmp);
+			
+			char str[] = new char[16 * 2];
+			int k = 0;
+			for (int i = 0; i < 16; i++)
+			{
+				byte byte0 = tmp[i];
+				str[k++] = hexDigits[byte0 >>> 4 & 0xf];
+				str[k++] = hexDigits[byte0 & 0xf];
+			}
+			return new String(str);
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	/** 返回MD5字符串。
+	 * 
+	 * @param source
+	 * @param place
+	 *            为返回String长度的1/2位数
+	 * @return
+	 */
+	public static String getMD5(String source, int place)
+	{
+		if (source == null)
+		{
+			return null;
+		}
+		return getMD5(source.getBytes());
+	}
+	
+	/**
+	 * 返回MD5字符串。
+	 * 
+	 * @param source
+	 * @param place
+	 *            1/2位数
+	 * @return md5字符串
+	 */
+	public static String getMD5(byte[] source, int place)
+	{
+		String s = null;
+		try
+		{
+			MessageDigest md = MessageDigest.getInstance("MD5");
+			md.update(source);
+			byte tmp[] = md.digest();
+			char str[] = new char[place * 2];
+			int k = 0;
+			for (int i = 0; i < place; i++)
+			{
+				byte byte0 = tmp[i];
+				str[k++] = hexDigits[byte0 >>> 4 & 0xf];
+				str[k++] = hexDigits[byte0 & 0xf];
+			}
+			s = new String(str);
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+		return s;
+	}
+	
+	/**
+	 * 计算字符串 MD5值
+	 * 
+	 * @param msg
+	 *            待计算字符串
+	 * @return MD5值
+	 * @throws MD5Error 
+	 */
+	public static byte[] getMD5Bytes(String msg) {
+		try {
+			MessageDigest md = MessageDigest.getInstance("MD5");
+			return md.digest(msg.getBytes());
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		return null;
+	}
+
+	public static void main(String[] args)
+	{
+		// Test
+		String md5 = MD5Util.getMD5("/mnt/sdcard/KingsoftOffice/file/说明.doc");
+		System.out.println(md5);
+	}
+}
+

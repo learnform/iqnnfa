@@ -1,0 +1,126 @@
+package com.dr.model.cpa;
+
+import java.util.Date;
+
+public class DrChannelRewardPhonedata {
+    private Integer id;
+
+    private Integer uid;
+    private String orderId;
+
+    private String phone;
+
+    private String productName;
+
+    private String effType;
+
+    private String rewardType;
+
+    private Integer investId;
+
+    private String status;
+
+    private Date createTime;
+
+    private Date processTime;
+
+    private String failureReason;
+
+    private static final long serialVersionUID = 1L;
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public Integer getUid() {
+        return uid;
+    }
+
+    public void setUid(Integer uid) {
+        this.uid = uid;
+    }
+
+    public String getOrderId() {
+        return orderId;
+    }
+
+    public void setOrderId(String orderId) {
+        this.orderId = orderId == null ? null : orderId.trim();
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone == null ? null : phone.trim();
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName == null ? null : productName.trim();
+    }
+
+    public String getEffType() {
+        return effType;
+    }
+
+    public void setEffType(String effType) {
+        this.effType = effType == null ? null : effType.trim();
+    }
+
+    public String getRewardType() {
+        return rewardType;
+    }
+
+    public void setRewardType(String rewardType) {
+        this.rewardType = rewardType == null ? null : rewardType.trim();
+    }
+
+    public Integer getInvestId() {
+        return investId;
+    }
+
+    public void setInvestId(Integer investId) {
+        this.investId = investId;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status == null ? null : status.trim();
+    }
+
+    public Date getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(Date createTime) {
+        this.createTime = createTime;
+    }
+
+    public Date getProcessTime() {
+        return processTime;
+    }
+
+    public void setProcessTime(Date processTime) {
+        this.processTime = processTime;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public void setFailureReason(String failureReason) {
+        this.failureReason = failureReason == null ? null : failureReason.trim();
+    }
+}

@@ -1,0 +1,119 @@
+package com.dr.dao.product;
+
+import java.math.BigDecimal;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.ibatis.annotations.Param;
+
+import com.dr.model.product.DrProductInvest;
+
+
+public interface DrProductInvestDAO {
+    /**
+     * 得到投资记录
+     *
+     * @param Map
+     * @return List<DrProductInvest>
+     */
+    public List<DrProductInvest> selectInvestLogByParam(Map<String, Object> map);
+
+    public Integer selectInvestLogCountByParam(Map<String, Object> map);
+
+    public Integer selectInvestFifteenDaysLogCountByParam(Map<String, Object> map);
+
+    public Integer selectInvestFifteenDaysLogCountByParamIndex(Map<String, Object> map);
+
+    /**
+     * 只插入有值得字段
+     *
+     * @param invest
+     */
+    public void insertSelective(DrProductInvest invest);
+
+    /**
+     * 获取产品已投资人数
+     *
+     * @param pid
+     * @return
+     */
+    public Integer selectInvestNumsByPid(@Param("pid") Integer pid);
+
+    /**
+     * 通过状态查找用户对应本金总合
+     *
+     * @param status
+     * @param uid
+     * @return
+     */
+    public BigDecimal selectUserSumPrincipalByStatus(@Param("status") Integer status, @Param("uid") Integer uid);
+
+    /**
+     * 通过状态查找用户对应利息总合
+     *
+     * @param status
+     * @param uid
+     * @return
+     */
+    public BigDecimal selectUserSumInterestByStatus(@Param("status") Integer status, @Param("uid") Integer uid);
+
+    /**
+     * 根据map条件计算用户投资次数
+     *
+     * @param map
+     * @return
+     */
+    public Integer selectInvestCountByMap(Map<String, Object> map);
+
+    /**
+     * 用户最后一次投资信息
+     *
+     * @param uid
+     * @return
+     */
+    public Map<String, Object> selectUserLastInvestmentInfo(Integer uid);
+
+    /**
+     * 查询用户大于指定金额和期限的投资记录
+     *
+     * @param param
+     * @return
+     */
+    public List<DrProductInvest> selectInvestList(Map<String, Object> param);
+
+    /**
+     * 年化投资额
+     *
+     * @param Map<String, Object>
+     * @return BigDecimal
+     */
+    public BigDecimal getAnnualInvestSumByParam(Map<String, Object> map);
+
+    public DrProductInvest selectByPrimaryKey(Integer id);
+
+    /**
+     * 查询用户的累计投资金额
+     * 查询用户最近的异常中大奖时间
+     */
+    public Map<String, Object> selectInvestAmountHalfYear(int uid);
+
+    /**
+     * 查询该时间之后的投资总额
+     *
+     * @param date
+     * @return
+     */
+    public BigDecimal getDrawInvest(Map<String, Object> map);
+
+    public BigDecimal selectAllProductInvest(Map<String, Object> map);
+
+    /**
+     * 获得下载地址.
+     *
+     * @param uid 用户id
+     * @param id  投资id
+     * @return 返回合同编号
+     */
+    String getContractNo(@Param("uid") Integer uid, @Param("id") Integer id);
+}

@@ -1,0 +1,45 @@
+package com.dr.dao.member;
+
+
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.ibatis.annotations.Param;
+
+import com.dr.model.member.DrMember;
+
+public interface DrMemberDAO {
+	public void insertDrMember(DrMember DrMember)throws SQLException;
+
+    public int updateByPrimaryKey(DrMember record);
+
+    public DrMember selectByPrimaryKey(Integer uid);
+
+    public DrMember selectDrMemberByMobilephone(@Param("loginId") String loginId, @Param("releaseTime") Long releaseTime);
+    
+    Integer selectRecommRegSum(Integer uid);
+    
+    /**
+	 * 获取用户待还和待收笔数
+	 * @param map
+	 * @return
+	 */
+	public Map<String,Integer> queryCollectCountAndStayCount(Map<String,Object> map);
+	
+	/**
+	 * 通过推荐码或者手机号获取用户
+	 * @param str
+	 * @return
+	 */
+	public DrMember selectDrMemberByMobileOrRecomm(@Param("str") String str);
+	
+	/**
+	 * 查询用户是否参加活动
+	 * @param uid
+	 */
+	public List<DrMember> selectMemberIsJoinActivity(@Param("uid") Integer uid);
+	
+	public Integer isExistsMobilphone(@Param("mobilephone")String mobilephone);
+	
+}

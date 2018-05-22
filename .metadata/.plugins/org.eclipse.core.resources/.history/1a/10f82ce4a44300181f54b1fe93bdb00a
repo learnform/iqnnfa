@@ -1,0 +1,257 @@
+package com.dr.controller.orderManager;
+
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.dr.model.cpa.DrChannelInfo;
+import com.dr.model.system.SysUsersVo;
+import com.dr.service.cpa.DrChannelInfoService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.propertyeditors.CustomDateEditor;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.InitBinder;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.servlet.ModelAndView;
+
+import com.dr.common.ConfigUtil;
+import com.dr.common.JXLExcelView;
+import com.dr.common.PageInfo;
+import com.dr.common.PropertyUtil;
+import com.dr.model.product.DrProductInvest;
+import com.dr.service.product.DrProductInvestService;
+
+import javax.servlet.http.HttpServletRequest;
+
+@Controller
+@RequestMapping("/investOrder")
+public class InvestOrderController {
+	
+	@Autowired
+	private DrProductInvestService drProductInvestService;
+	@Autowired
+	private DrChannelInfoService drChannelInfoService;
+
+	@RequestMapping("/toInvestOrder")
+	public String toInvestOrder(Map<String,Object> model){
+		try {
+			model.put("method",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("method")));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/orderManager/investOrderList";
+	}
+	
+	@RequestMapping(value= "/investOrderList")
+	@ResponseBody
+	public PageInfo investOrderList(
+			DrProductInvest drProductInvest,
+			@RequestParam(value="cids", required=false )Integer[] cids,
+			@RequestParam(value="joinTypes", required=false )Integer[] joinTypes,
+			@RequestParam(value = "isFirst",required = false) Integer isFirst,
+			Integer page, Integer rows, HttpServletRequest request) {
+		Map<String, Object> param = new HashMap<String, Object>();
+		if(page == null){
+			page = PageInfo.DEFAULT_PAGE_ON;
+		}
+		if(rows == null){
+			rows = PageInfo.CRM_DEFAULT_PAGE_SIZE;
+		}
+		Integer uid = drProductInvestService.selectUidByPhone(drProductInvest.getRecomMobilePhone());
+		List<String> uids = drProductInvestService.selectUidByName(drProductInvest.getRecomRealName());
+		param.put("recomIds", uids);
+		param.put("recomId", uid);
+		param.put("minAmount", drProductInvest.getMinAmount());
+		param.put("maxAmount", drProductInvest.getMaxAmount());
+		param.put("deadlineStart", drProductInvest.getDeadlineStart());
+		param.put("deadlineEnd", drProductInvest.getDeadlineEnd());
+		param.put("fullName", drProductInvest.getFullName());
+		param.put("realname", drProductInvest.getRealname());
+		param.put("mobilephone", drProductInvest.getMobilephone());
+		param.put("startDate", drProductInvest.getStartDate());
+		param.put("endDate", drProductInvest.getEndDate());
+
+		SysUsersVo vo = (SysUsersVo)request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+		Map<String, Object> map1 = new HashMap<String, Object>();
+		map1.put("code",vo.getLoginId());
+		List<DrChannelInfo> drChannelInfo = drChannelInfoService.getDrChannelInfoListForMap(map1);
+		if (drChannelInfo.size() == 0) {
+			param.put("cids", cids);
+			if (cids != null) {
+				for (Integer cid : cids) {
+					if (cid == -1) {
+						param.put("QCGZCid", 0);
+					}
+				}
+			}
+		}else {
+			param.put("cids", new Integer[]{drChannelInfo.get(0).getId()});
+		}
+		param.put("isFirst",isFirst);
+		param.put("joinType", joinTypes);
+		param.put("startShouldTime",drProductInvest.getStartShouldTime());
+		param.put("endShouldTime",drProductInvest.getEndShouldTime());
+		param.put("method",drProductInvest.getMethod());	
+		PageInfo pi = new PageInfo(page,rows);
+		pi = drProductInvestService.selectInvestMemberInfoListByParam(param, pi);
+		return pi;
+	}
+	
+	@RequestMapping("/exportInvestOrderInfo")
+	public ModelAndView exportInvestOrderInfo(DrProductInvest drProductInvest,
+			@RequestParam(value="cids", required=false )Integer[] cids, 
+			@RequestParam(value="joinTypes", required=false )Integer[] joinTypes,
+			@RequestParam(value = "isFirst",required = false) Integer isFirst,
+			Integer page,Integer rows) throws Exception{
+		Map<String, Object> param = new HashMap<String, Object>();
+		Integer uid = drProductInvestService.selectUidByPhone(drProductInvest.getRecomMobilePhone());
+		List<String> uids = drProductInvestService.selectUidByName(drProductInvest.getRecomRealName());
+		param.put("recomIds", uids);
+		param.put("recomId", uid);
+		param.put("minAmount", drProductInvest.getMinAmount());
+		param.put("maxAmount", drProductInvest.getMaxAmount());
+		param.put("deadlineStart", drProductInvest.getDeadlineStart());
+		param.put("deadlineEnd", drProductInvest.getDeadlineEnd());
+		param.put("fullName", java.net.URLDecoder.decode(drProductInvest.getFullName(),"utf-8"));
+		param.put("realname", java.net.URLDecoder.decode(drProductInvest.getRealname(),"utf-8"));
+		param.put("mobilephone", drProductInvest.getMobilephone());
+		param.put("startDate", drProductInvest.getStartDate());
+		param.put("endDate", drProductInvest.getEndDate());
+		if (cids != null) {
+			for (Integer cid : cids) {
+				if (cid == -1) {
+					param.put("QCGZCid", 0);
+				}
+			}
+		}
+		param.put("cids", cids);
+		param.put("joinType", joinTypes);
+		param.put("method",drProductInvest.getMethod());	
+		param.put("startShouldTime",drProductInvest.getStartShouldTime());
+		param.put("endShouldTime",drProductInvest.getEndShouldTime());
+		param.put("isFirst",isFirst);
+		PageInfo pi = new PageInfo(page,Integer.MAX_VALUE);
+		pi = drProductInvestService.selectInvestMemberInfoListByParam(param, pi);
+		List<Map<String, Object>> rowsList = (List<Map<String, Object>>)pi.getRows();
+		/*String[] title = new String[]{"订单时间","用户ID","用户姓名","手机号码","推荐人姓名","推荐人号码","产品名称","项目周期(天)","订单金额","预计收益","红包返现",
+				"加息利率","翻倍倍数","计息日期","还款日期","投资终端","投资状态","活动兑换日期","活动金额","活动类型","活动状态","专属理财师","注册日期","注册渠道"};*/
+		String[] title = new String[]{"订单时间","用户ID","用户姓名","手机号码","注册渠道","产品名称","项目周期(天)","订单金额","预计收益","红包返现","是否首投",
+				"加息利率","计息日期","还款日期","投资终端","投资状态","活动兑换日期","活动金额","活动类型","活动状态","注册日期","推荐人姓名","推荐人号码"};
+		List<List<Object>> tableList = new ArrayList<List<Object>>();
+		List<Object> lc = null;
+		for(Map<String, Object> map:rowsList){
+			lc = new ArrayList<Object>();
+			lc.add(map.get("investTime"));
+			lc.add(map.get("uid"));
+			lc.add(map.get("realname"));
+			lc.add(map.get("mobilePhone"));
+			lc.add(map.get("chanelName"));
+			/*lc.add(map.get("recomRealName")==null?"":map.get("recomRealName"));
+			lc.add(map.get("recomMobilePhone")==null?"":map.get("recomMobilePhone"));*/
+			lc.add(map.get("fullName"));
+			lc.add(map.get("deadline"));
+			lc.add(map.get("amount"));
+			lc.add(map.get("interest"));
+			lc.add(map.get("faAmount1")==null?"":map.get("faAmount1"));
+			lc.add(map.get("isFirst"));
+			lc.add(map.get("raisedRates")==null?"":map.get("raisedRates"));
+			//lc.add(map.get("multiple")==null?"":map.get("multiple"));
+//			lc.add(map.get("method"));
+			lc.add(map.get("resultDate")==null?"":map.get("resultDate"));
+			lc.add(map.get("shouldTime")==null?"":map.get("shouldTime"));
+			lc.add(map.get("joinType"));
+			lc.add(map.get("statusName"));
+			lc.add(map.get("usedTime")==null?"":map.get("usedTime"));
+			lc.add(map.get("faAmount2")==null?"":map.get("faAmount2"));
+			lc.add(map.get("typeName")==null?"":map.get("typeName"));
+			lc.add(map.get("faStatus")==null?"":map.get("faStatus"));
+			//lc.add(map.get("userKey")==null?"":map.get("userKey"));
+			lc.add(map.get("regdate"));
+			//lc.add(map.get("chanelName"));
+			lc.add(map.get("recomRealName")==null?"":map.get("recomRealName"));
+			lc.add(map.get("recomMobilePhone")==null?"":map.get("recomMobilePhone"));
+			tableList.add(lc);
+		}
+		param.clear();
+		param.put("excelName", "invest_order_record_"+System.currentTimeMillis()+".xls");
+		param.put("titles", title);
+		param.put("list", tableList);
+		return new ModelAndView(new JXLExcelView(), param);
+	}
+	
+	@RequestMapping("/toInvestBossOrder")
+	public String toInvestBossOrder(Map<String,Object> model){
+		try {
+			model.put("method",  ConfigUtil.dictionaryMap.get(PropertyUtil.getProperties("method")));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return "system/orderManager/investOrderBossList";
+	}
+	
+	@RequestMapping(value= "/investOrderBossList")
+	@ResponseBody
+	public PageInfo investOrderBossList(
+			DrProductInvest drProductInvest,
+			@RequestParam(value="cids", required=false )Integer[] cids, 
+			Integer page,Integer rows) {
+		Map<String, Object> param = new HashMap<String, Object>();
+		if(page == null){
+			page = PageInfo.DEFAULT_PAGE_ON;
+		}
+		if(rows == null){
+			rows = PageInfo.CRM_DEFAULT_PAGE_SIZE;
+		}
+		param.put("fullName", drProductInvest.getFullName());
+		param.put("realname", drProductInvest.getRealname());
+		param.put("mobilephone", drProductInvest.getMobilephone());
+		param.put("startDate", drProductInvest.getStartDate());
+		param.put("endDate", drProductInvest.getEndDate());
+		param.put("cids", cids);
+		param.put("startShouldTime",drProductInvest.getStartShouldTime());
+		param.put("endShouldTime",drProductInvest.getEndShouldTime());
+		param.put("method",drProductInvest.getMethod());		
+		PageInfo pi = new PageInfo(page,rows);
+		pi = drProductInvestService.selectInvestMemberInfoListByParam(param, pi);
+		return pi;
+	}
+	
+	/**
+	 * 表单提交日期绑定
+	 * @param binder
+	 */
+    @InitBinder  
+    public void initBinder(WebDataBinder binder) {  
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");  
+        dateFormat.setLenient(false);  
+        binder.registerCustomEditor(Date.class, new CustomDateEditor(dateFormat, true));  
+    }
+
+
+	/**
+	 * 订单管理页 标题处显示统计数据
+	 */
+	@RequestMapping(value= "/getTitleParam")
+	@ResponseBody
+	public Map getTitleParam(String startDate,String endDate,HttpServletRequest request){
+		Map<String,Integer> map = new HashMap<String,Integer>();
+		SysUsersVo vo = (SysUsersVo)request.getSession().getAttribute(ConfigUtil.ADMIN_LOGIN_USER);
+		Map<String, Object> map1 = new HashMap<String, Object>();
+		map1.put("code",vo.getLoginId());
+		List<DrChannelInfo> drChannelInfo = drChannelInfoService.getDrChannelInfoListForMap(map1);
+		if (drChannelInfo.size() == 0) {
+			map = drProductInvestService.getTitleParam(startDate, endDate);
+		}else {
+			map.put("channel",1);
+		}
+		return map;
+	}
+
+}

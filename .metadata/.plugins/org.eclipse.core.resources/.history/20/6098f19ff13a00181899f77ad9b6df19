@@ -1,0 +1,75 @@
+package com.dr.controller.task;
+
+import com.dr.common.PropertyUtil;
+import com.dr.dao.product.DrProductInfoDAO;
+import com.dr.model.member.DrChannelReward;
+import com.dr.model.product.DrProductInfo;
+import com.dr.service.cpa.DrChannelRewardPhonedataService;
+import com.thirdparty.wps.WpsApi;
+import org.apache.log4j.Logger;
+import org.apache.log4j.spi.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+/**
+ * 
+ * ClassName: AutoPubPaymengNotice
+ * Function: TODO 自动发送还款公告任务
+ * date: 2018年4月8日 上午11:30:37
+ * 
+ * @author fanlongbiao 
+ * @version  
+ * @since JDK 1.7
+ */
+@Component
+public class AutoPubPaymentNoticeTask {
+	
+	@Autowired
+	private DrProductInfoDAO drProductInfoDAO;
+	
+	private final static Logger log = Logger.getLogger(AutoPubPaymentNoticeTask.class);
+	
+	public void autoPubPaymentNotice(){
+		log.info("---------自动发送还款公告任务开始---------");
+		List<DrProductInfo> expireProductInfoList = drProductInfoDAO.selectNowdayExpireProductInfo();
+		if(expireProductInfoList.size()==0){
+			log.info("---------当天没有要回款的产品---------");
+			return;
+		}else{
+			for (DrProductInfo drProductInfo : expireProductInfoList) {
+				try {
+					PropertyUtil.getProperties("paymentProductInfo")
+					.replace("${1}", drProductInfo.getAmount().setScale(2).toString())
+					.replace("${2}", drProductInfo.getDeadline().toString())
+					.replace("${3}", drProductInfo.getRate().toString())
+					.replace("${4}", drProductInfo.getFullName())
+					.replace("${5}", drProductInfo.getFullName())
+					.replace("${6}", drProductInfo.getFullName())
+					.replace("${7}", drProductInfo.getFullName())
+					.replace("${8}", drProductInfo.getFullName());
+				} catch (IOException e) {
+					log.error(e.getMessage()+"获取paymentProductInfo信息失败");
+				}
+			}
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

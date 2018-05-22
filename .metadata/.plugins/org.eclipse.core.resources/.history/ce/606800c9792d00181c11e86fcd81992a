@@ -1,0 +1,85 @@
+package com.dr.service.product;
+
+import com.dr.common.BaseResult;
+import com.dr.common.PageInfo;
+import com.dr.model.member.DrMember;
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductType;
+import com.dr.model.product.ProductIndexDto;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public interface DrProductInfoService {
+
+    /**
+     * 首页产品信息列表数据
+     *
+     * @return BaseResult
+     */
+    public HashMap<String, Object> indexProductInfo(Integer size);
+
+    /**
+     * 条件查找产品列表
+     *
+     * @param param
+     * @param pi
+     * @return
+     */
+    public BaseResult selectProductInfoByParams(Map<String, Object> param, PageInfo pi);
+
+
+    /**
+     * 通过产品ID查看产品信息
+     *
+     * @param id
+     * @return
+     */
+    public DrProductInfo selectProductByPrimaryKey(Integer id);
+
+    /**
+     * 保存投资
+     *
+     * @param loginMember
+     * @param param
+     * @return
+     * @throws Exception
+     */
+    public BaseResult saveInvest(DrMember loginMember, DrProductInfo pInfo, Map<String, Object> param) throws Exception;
+
+    /**
+     * 查询热销产品
+     *
+     * @return
+     */
+    public List<DrProductInfo> selectHotProductInfo();
+
+    /**
+     * 查询活动产品详情
+     *
+     * @return
+     */
+    public DrProductInfo selectActivityProduct();
+
+    /**
+     * 通过PID获取产品详情（包括部分票据信息）
+     *
+     * @param id
+     * @return
+     */
+    public DrProductInfo selectProductDetailByPid(Integer id);
+
+
+    Integer selectHaveNewHand(Integer uid);
+
+    Integer selectHaveFifteendaysInvest(Integer uid);
+
+
+    /**
+     * 获得产品类型.
+     *
+     * @return 产品类型列表
+     */
+    List<DrProductType> getTypeList();
+}

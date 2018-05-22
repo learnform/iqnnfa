@@ -1,0 +1,24 @@
+package com.dr.service.activity;
+
+import java.util.Map;
+
+import com.dr.model.activity.DrActivity;
+
+public interface DrActivityService {
+
+	/**
+	 * 通过主键获取活动信息
+	 * @param id
+	 * @return
+	 */
+	public DrActivity selectByPrimaryKey(Integer id);
+	
+	/**
+	 * 
+	 * selectInvestRanking:查询活动期间的用户排名
+	 * @param startDate
+	 * @param endDate
+	 * @return 
+	 */
+	List<Map<String,Object>> selectInvestRanking(String startDate,String endDate);
+}

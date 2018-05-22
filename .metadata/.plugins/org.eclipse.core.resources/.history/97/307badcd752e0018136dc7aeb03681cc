@@ -1,0 +1,618 @@
+package com.dr.service.product.impl;
+
+import com.alibaba.fastjson.JSONObject;
+import com.dr.common.*;
+import com.dr.dao.activity.DrMemberFavourableDAO;
+import com.dr.dao.cpa.DrChannelMessageRuleDAO;
+import com.dr.dao.member.DrMemberFundsDAO;
+import com.dr.dao.member.DrMemberFundsLogDAO;
+import com.dr.dao.member.DrMemberFundsRecordDAO;
+import com.dr.dao.member.DrMemberMsgDAO;
+import com.dr.dao.product.DrProductInfoDAO;
+import com.dr.dao.product.DrProductInvestDAO;
+import com.dr.dao.subject.DrSubjectInfoDAO;
+import com.dr.dao.system.DrCompanyFundsLogDAO;
+import com.dr.model.activity.DrMemberFavourable;
+import com.dr.model.activity.DrPointsRecord;
+import com.dr.model.cpa.DrChannelMessageRule;
+import com.dr.model.member.*;
+import com.dr.model.product.DrProductInfo;
+import com.dr.model.product.DrProductInvest;
+import com.dr.model.product.DrProductType;
+import com.dr.model.subject.DrSubjectInfo;
+import com.dr.model.system.DrCompanyFundsLog;
+import com.dr.service.activity.DrPointsRecordService;
+import com.dr.service.product.DrProductInfoService;
+import com.dr.service.system.impl.RedisClientTemplate;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.*;
+
+@Service
+@Transactional
+public class DrProductInfoServiceImpl implements DrProductInfoService {
+    private static Logger log = Logger.getLogger(DrProductInfoServiceImpl.class);
+
+    @Autowired
+    private DrProductInfoDAO drProductInfoDAO;
+    @Autowired
+    private DrProductInvestDAO drProductInvestDAO;
+    @Autowired
+    private DrMemberMsgDAO drMemberMsgDAO;
+    @Autowired
+    private DrMemberFundsDAO drMemberFundsDAO;
+    @Autowired
+    private DrMemberFundsRecordDAO drMemberFundsRecordDAO;
+    @Autowired
+    private DrMemberFundsLogDAO drMemberFundsLogDAO;
+    @Autowired
+    private DrMemberFavourableDAO drMemberFavourableDAO;
+    @Autowired
+    private RedisClientTemplate redisClientTemplate;
+    @Autowired
+    private DrChannelMessageRuleDAO drChannelMessageRuleDAO;
+    @Autowired
+    private DrPointsRecordService drPointsRecordService;
+    @Autowired
+    private DrCompanyFundsLogDAO drCompanyFundsLogDAO;
+    @Autowired
+    private DrSubjectInfoDAO drSubjectInfoDAO;
+
+    @Value("${autoAdded.phoneNums}")
+    private String phoneNums;
+    @Value("${raised.phoneNums}")
+    private String raisedNum;
+
+    @Override
+    public BaseResult selectProductInfoByParams(Integer type, PageInfo pi, Integer deadline, Integer max) {
+        BaseResult br = new BaseResult();
+        Map<String, Object> param = new HashMap<String, Object>();
+        StringBuffer orderStr = new StringBuffer();
+        if (null != max && max == 1) {
+            //max=1时，返回首页的募集的最高的产品
+            pi.setPageSize(1);
+            orderStr = orderStr.append("and dpi.status=5 and dpi.surplusAmount !=0 order by dpi.surplusAmount asc");
+        } else {
+//			orderStr = orderStr.append("order by dpi.status, dpi.isHot desc, dpi.startDate desc");
+            orderStr = orderStr.append("order by dpi.status, dpi.isHot desc,dpi.fullDate desc,dpi.deadline desc,rate desc,dpi.startDate asc");
+        }
+        param.put("orderStr", orderStr);
+        if (Utils.isObjectNotEmpty(type)) {
+            if (type.intValue() == 1) {
+                param.put("status", 5);
+                param.put("type", type);
+                param.put("offset", pi.getPageInfo().getOffset());
+                param.put("limit", 1);
+            } else {
+                param.put("statuses", new Integer[]{5, 6, 8, 9});
+                param.put("type", type);
+                param.put("deadline", deadline);
+                param.put("offset", pi.getPageInfo().getOffset());
+                param.put("limit", pi.getPageInfo().getLimit());
+            }
+        } else {
+            List<DrProductType> productTypeList = drProductInfoDAO.getTypeList();
+            Integer[] types = new Integer[productTypeList.size()];
+            for (int i = 0; i < productTypeList.size(); i++) {
+                types[i] = Integer.valueOf(productTypeList.get(i).getCode());
+            }
+            param.put("types", types);
+            param.put("statuses", new Integer[]{5, 6, 8, 9});
+            param.put("status1", new Integer[]{6});
+            param.put("deadline", deadline);
+            param.put("offset", pi.getPageInfo().getOffset());
+            param.put("limit", pi.getPageInfo().getLimit());
+        }
+
+        List<Map<String, Object>> list = drProductInfoDAO.selectProductInfoListByParam(param);
+        Integer total = drProductInfoDAO.selectProductInfoListByParamCount(param);
+        pi.setRows(list);
+        pi.setTotal(total);
+        param.clear();
+        param.put("page", pi);
+        br.setMap(param);
+
+        return br;
+    }
+
+
+    @Override
+    public DrProductInfo selectProductDetailByPid(Integer pid) {
+        return drProductInfoDAO.selectProductDetailByPid(pid);
+    }
+
+    @Override
+    public BaseResult saveInvest(DrMember loginMember, DrProductInfo pInfo, JSONObject json)
+            throws Exception {
+        BaseResult br = new BaseResult();
+        String tpwd = json.getString("tpwd");
+        BigDecimal amount = json.getBigDecimal("amount");
+        Integer errorNums = StringUtils.isBlank(redisClientTemplate.get("error.tpwd.uid." + loginMember.getUid())) ? 0 :
+                Integer.parseInt(redisClientTemplate.get("error.tpwd.uid." + loginMember.getUid()));//密码错误次数
+
+        DrMemberFunds funds = drMemberFundsDAO.queryDrMemberFundsByUid(loginMember.getUid());
+        if (Utils.isObjectEmpty(pInfo) || pInfo.getStatus() != 5) {// 产品已募集完成
+            br.setSuccess(false);
+            br.setErrorCode("1002");
+            return br;
+        } else if ((pInfo.getType() == 2 || pInfo.getType() == 3)
+                && pInfo.getSurplusAmount().compareTo(amount) < 0) {// 剩余可投资金额不足
+            br.setSuccess(false);
+            br.setErrorCode("1003");
+            return br;
+        } else if (pInfo.getLeastaAmount().compareTo(amount) > 0) {// 投资金额小于起投金额
+            br.setSuccess(false);
+            br.setErrorCode("1004");
+            return br;
+        } else if (amount.remainder(pInfo.getIncreasAmount()).compareTo(BigDecimal.ZERO) != 0) {// 投资金额非递增金额的整数倍
+            br.setSuccess(false);
+            br.setErrorCode("1005");
+            return br;
+        } else if (amount.compareTo(pInfo.getMaxAmount()) > 0) {// 投资金额大于个人可投资金额
+            br.setSuccess(false);
+            br.setErrorCode("1006");
+            return br;
+        } else if (funds.getBalance().compareTo(amount) < 0) {
+            br.setSuccess(false);
+            br.setErrorCode("1007");
+            return br;
+        } else if (!loginMember.getTpassWord().equals(tpwd)) {// 交易密码不正确
+            if (errorNums >= 2) {
+                br.setSuccess(false);
+                redisClientTemplate.setex("error.tpwd.uid." + loginMember.getUid(), 3600, String.valueOf(errorNums + 1));
+                br.setErrorCode("2001");
+                return br;
+            }
+            Integer seconds = Utils.getDateSecondsSub(Utils.format(new Date(), "yyyy-MM-dd 23:59:59"), Utils.format(new Date(), "yyyy-MM-dd HH:mm:ss"));
+            redisClientTemplate.setex("error.tpwd.uid." + loginMember.getUid(), seconds, String.valueOf(errorNums + 1));
+            br.setSuccess(false);
+            br.setErrorCode("1001");
+            return br;
+        }
+
+        Map<String, Object> map = new HashMap<String, Object>();
+        if (pInfo.getType() == 1) {// 新手标只限未投资过的人
+            map.put("uid", loginMember.getUid());
+            Integer rows = drProductInvestDAO
+                    .selectInvestLogCountByParam(map);
+            if (rows > 0) {
+                br.setSuccess(false);
+                br.setErrorCode("1008");
+                return br;
+            }
+        }
+
+        if (pInfo.getDeadline() == 7) {//7天标只限投一次
+            map.clear();
+            map.put("uid", loginMember.getUid());
+            map.put("deadline", 7);
+            Integer rows = drProductInvestDAO.selectInvestFifteenDaysLogCountByParamIndex(map);
+            if (rows > 0) {
+                br.setSuccess(false);
+                br.setErrorCode("1008");
+                return br;
+            }
+        }
+
+        DrMemberFavourable dmf = null;
+        Integer fid = json.getInteger("fid");
+        if (fid != null) {// 使用优惠券
+            map.clear();
+            map.put("uid", loginMember.getUid());
+            map.put("status", 0);
+            map.put("amount", amount);
+            map.put("id", fid);
+            map.put("deadline", pInfo.getDeadline());
+            if (pInfo.getType() != 1) {
+                map.put("time", new Date());
+            }
+            List<DrMemberFavourable> list = drMemberFavourableDAO.getMemberFavourableByParam(map);
+            dmf = list.size() > 0 ? list.get(0) : null;
+            if (dmf == null) {
+                br.setSuccess(false);
+                br.setErrorCode("1010");
+                return br;
+            } else {
+                if (dmf.getType() == 4 && dmf.getSource() == 0) {//非首投用户，不能使用系统赠送的翻倍券
+                    map.clear();
+                    map.put("uid", loginMember.getUid());
+                    map.put("barring", new Integer[]{1});
+                    map.put("deadline", new Integer(7));
+                    Integer investCount = drProductInvestDAO.selectInvestCountByMap(map);
+                    if (investCount > 0) {
+                        br.setSuccess(false);
+                        br.setErrorCode("1012");
+                        return br;
+                    }
+                }
+            }
+        }
+        // 更新产品信息
+        pInfo.setAlreadyRaiseAmount(pInfo.getAlreadyRaiseAmount().add(amount));
+        pInfo.setSurplusAmount(pInfo.getSurplusAmount().subtract(amount));
+        if (pInfo.getType() != 1 && pInfo.getType() != 4 && pInfo.getSurplusAmount().compareTo(BigDecimal.ZERO) == 0) {//募集完成 新手标始终处于募集中
+            pInfo.setStatus(6);
+            pInfo.setIsHot(0);
+            pInfo.setFullDate(new Date());
+            redisClientTemplate.del("product.info." + pInfo.getId());
+        }
+        redisClientTemplate.setex(("product.info." + pInfo.getId()).getBytes(), 600, SerializeUtil.serialize(pInfo));
+        drProductInfoDAO.updateProductSelective(pInfo);
+        // 将优惠券置为已使用
+        if (dmf != null) {
+            dmf.setStatus(1);
+            dmf.setUsedTime(new Date());
+            drMemberFavourableDAO.updateFavourableStatus(dmf);
+        }
+
+        map.clear();
+        map.put("uid", loginMember.getUid());
+        map.put("status", 0);
+        map.put("source", 0);//注册发放
+        if (pInfo.getType() == 1) {//新手标
+            map.put("type", new Integer[]{3});
+        } else {
+            map.put("type", new Integer[]{3, 4});//3:体验金  4:翻倍券
+        }
+        List<DrMemberFavourable> list = drMemberFavourableDAO.getMemberFavourableByParam(map);
+        if (!Utils.isEmptyList(list) && list.size() > 0) {
+            for (int i = 0; i < list.size(); i++) {
+                if (list.get(i) != null && list.get(i).getType() == 4 && pInfo.getDeadline() != 7) {
+                    continue;
+                }
+                DrMemberFavourable dmf1 = new DrMemberFavourable();
+                dmf1.setStatus(2);
+                dmf1.setId(list.get(i).getId());
+                drMemberFavourableDAO.updateFavourableStatus(dmf1);
+            }
+        }
+
+        // 插入投资记录
+        DrProductInvest invest = new DrProductInvest();
+        invest.setAmount(amount);
+        invest.setUid(loginMember.getUid());
+        invest.setJoinType(json.getInteger("channel"));// 投资渠道
+        invest.setStatus(0);
+        invest.setPid(pInfo.getId());
+        invest.setFid(fid);
+        BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(pInfo.getRate().add(pInfo.getActivityRate()), 100), 360);
+        invest.setInterest(amount.multiply(dayRate).multiply(new BigDecimal(pInfo.getDeadline())).setScale(2, BigDecimal.ROUND_FLOOR));
+        invest.setInvestTime(new Date());
+        drProductInvestDAO.insertSelective(invest);
+
+        //使用redis暂存投资id和产品id
+        redisClientTemplate.setex("activity.app.pid", 10, invest.getPid() + "");
+        redisClientTemplate.setex("activity.app.investId", 10, invest.getId() + "");
+
+        // 用户资金记录
+        funds.setBalance(funds.getBalance().subtract(amount));
+        funds.setFreeze(funds.getFreeze().add(amount));
+
+        DrMemberFundsRecord fundsRecord = new DrMemberFundsRecord(pInfo.getId(), invest.getId(), loginMember.getUid(), 3, 0, amount,
+                funds.getBalance(), 4, "投资【" + pInfo.getFullName() + "】产品", null);
+        drMemberFundsRecordDAO.insert(fundsRecord);
+
+        DrMemberFundsLog fundslog = new DrMemberFundsLog(loginMember.getUid(), fundsRecord.getId(), amount, 3, 0,
+                "投资【" + pInfo.getFullName() + "】产品,资金冻结");
+        drMemberFundsLogDAO.insertDrMemberFundsLog(fundslog);
+
+        //自动上架
+        this.doAutoAdded(pInfo);
+
+        //尾单返现
+        boolean tailCash = false;
+        BigDecimal tail = new BigDecimal(20);
+        if (pInfo.getType() != 1 && pInfo.getType() != 4 && pInfo.getSurplusAmount().compareTo(BigDecimal.ZERO) == 0) {//募集完成 新手标始终处于募集中
+            pInfo.setStatus(6);
+            pInfo.setIsHot(0);
+            pInfo.setFullDate(new Date());
+            redisClientTemplate.del("product.info." + pInfo.getId());
+            //募集结束后发送短信通知管理人员
+            sendSMS(pInfo);
+            //尾投返利
+            tailCash = tailCash(tail, loginMember, pInfo, invest.getId(), amount, funds);
+        }
+
+        //为用户添加积分
+//		Integer point = 0;
+//		if(pInfo.getType() != 1){
+//			point = this.addUserPoints(funds,loginMember,amount,pInfo);
+//		}
+
+        //实时发放红包
+        if (dmf != null && dmf.getType() == 1 && pInfo.getImmediately() != null && pInfo.getImmediately() == 1) {
+            this.getInvestProfit(dmf, pInfo, invest, funds, fundsRecord);
+        }
+
+        drMemberFundsDAO.updateDrMemberFunds(funds);
+
+        // 发送站内信
+        DrMemberMsg msg = new DrMemberMsg(loginMember.getUid(), 0, 3, "投资成功", new Date(), 0, 0,
+                redisClientTemplate.getProperties("investSuccess").replace("${fullName}", pInfo.getFullName()).replace("${amount}", invest.getAmount().toString()));
+        drMemberMsgDAO.insertDrMemberMsg(msg);
+        try {
+            map.clear();
+            map.put("uid", loginMember.getUid());
+            map.put("deadline", pInfo.getDeadline());
+            map.put("amount", amount);
+            List<DrChannelMessageRule> rList = drChannelMessageRuleDAO.selectMemberChannelCodeMsgRule(map);
+            for (DrChannelMessageRule rule : rList) {
+                if (msg.getAddTime().after(rule.getStartTime()) && msg.getAddTime().before(rule.getEndTime())) {
+                    if (rule.getFirstCast() == 1) {
+                        map.clear();
+                        map.put("uid", loginMember.getUid());
+                        map.put("deadline", rule.getDeadline());
+                        map.put("amount", rule.getAmount());
+                        map.put("startDate", Utils.format(rule.getStartTime(), "yyyy-MM-dd"));
+                        map.put("endDate", Utils.format(rule.getEndTime(), "yyyy-MM-dd"));
+                        Integer count = drProductInvestDAO.selectInvestLogCountByParam(map);
+                        if (count <= 1) {
+                            msg.setContent(rule.getMessage());
+                            drMemberMsgDAO.insertDrMemberMsg(msg);
+                        }
+                    } else {
+                        msg.setContent(rule.getMessage());
+                        drMemberMsgDAO.insertDrMemberMsg(msg);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("投资发送额外渠道站内信失败", e);
+        }
+        redisClientTemplate.del("error.tpwd.uid." + loginMember.getUid());
+        if (pInfo.getType() != 1) {
+            redisClientTemplate.setex("user.invest.amount." + loginMember.getUid(), 5, invest.getAmount().toString());
+        }
+        map.clear();
+//		map.put("pointsAmount", point);
+        if (dmf != null && dmf.getType() == 1 && pInfo.getImmediately() != null && pInfo.getImmediately() == 1) {
+            map.put("dmfAmount", dmf.getAmount());
+        }
+        if (tailCash) {
+            map.put("tailCashAmount", tail.intValue());
+        }
+        br.setMap(map);
+        br.setSuccess(true);
+        return br;
+    }
+
+    @Override
+    public DrProductInfo selectProductByPrimaryKey(Integer id) {
+        return drProductInfoDAO.selectProductByPrimaryKey(id);
+    }
+
+    @Override
+    public List<DrProductInfo> selectHotProductInfo() {
+        return drProductInfoDAO.selectHotProductInfo();
+    }
+
+    @Override
+    public DrProductInfo selectNewHandInfo() {
+        return drProductInfoDAO.selectNewHandInfo();// 体验标
+    }
+
+    @Override
+    public DrProductInfo selectFifteendaysProductInfo() {
+        return drProductInfoDAO.selectFifteendaysProductInfo();// 15天新手标
+    }
+
+    @Override
+    public DrProductInfo selectDefaultProductInfo() {
+        return drProductInfoDAO.selectDefaultProductInfo();
+    }
+
+    @Override
+    public Integer selectHaveFifteendaysInvest(Integer uid) {
+        Integer a = 0;
+        Map<String, Object> param = new HashMap<String, Object>();
+        param.clear();
+        param.put("uid", uid);
+        param.put("deadline", 7);
+        Integer rows = drProductInvestDAO.selectInvestFifteenDaysLogCountByParamIndex(param);
+        if (rows > 0) {
+            a = 0;//a=0 表示用户已投过15天标，不能再投
+        } else {
+            a = 1;//a=1 表示用户可以投15天标
+        }
+        return a;
+    }
+
+    @Override
+    public Integer selectHaveFifteendaysInvestIndex(Integer uid) {
+        Integer a = 0;
+        Map<String, Object> param = new HashMap<String, Object>();
+        param.clear();
+        param.put("uid", uid);
+        param.put("deadline", 7);
+        Integer rows = drProductInvestDAO.selectInvestFifteenDaysLogCountByParamIndex(param);
+        ;
+        if (rows > 0) {
+            a = 0;//a=0 表示用户已投过15天标，不能再投
+        } else {
+            a = 1;//a=1 表示用户可以投15天标
+        }
+        return a;
+    }
+
+    /**
+     * 获得推荐的产品数据.
+     *
+     * @return 产品数据
+     */
+    @Override
+    public List<DrProductInfo> getRecommendedProductList() {
+        return drProductInfoDAO.getRecommendedProductList();
+    }
+
+    /**
+     * 获得产品类型.
+     *
+     * @return 获得产品类型.
+     */
+    @Override
+    public List<DrProductType> getTypeList() {
+        return drProductInfoDAO.getTypeList();
+    }
+
+    //产品募集结束后触发短信通知
+    private void sendSMS(DrProductInfo info) {
+        try {
+            Date time1 = new GregorianCalendar().getTime();
+            Date time2 = info.getEstablish();
+            String msg = "'" + info.getFullName() + "'已于" + Utils.format(new Date(), "MM月dd日HH时mm分ss秒") + "已经提前" + Utils.getQuot(Utils.format(time2, "yyyy-MM-dd"), Utils.format(time1, "yyyy-MM-dd")) + "天募集结束，请尽快发标！！！";
+            String[] split = raisedNum.split(",");
+            for (String string : split) {
+                SmsSendUtil.sendMsg(string, msg, 1);
+            }
+            log.info("产品募集结束后短信通知发送成功" + msg);
+        } catch (Exception e) {
+            log.error("产品募集结束后短信通知发送失败", e);
+        }
+    }
+
+    /**
+     * 计算投资积分
+     *
+     * @param funds
+     * @param loginMember
+     * @param amount
+     * @param pInfo
+     * @return
+     */
+    private Integer addUserPoints(DrMemberFunds funds, DrMember loginMember, BigDecimal amount, DrProductInfo pInfo) {
+        //计算应得积分
+        Integer result = 0;
+        try {
+            //每投资100元记1积分
+            Integer point = amount.divide(new BigDecimal("100"), 0, BigDecimal.ROUND_DOWN).intValue();
+            //插入流水
+            DrPointsRecord dpr = new DrPointsRecord();
+            dpr.setUid(loginMember.getUid());
+            dpr.setRecordtype(1);//1：投资送积分
+            dpr.setPid(pInfo.getId());
+            dpr.setStatus(2);//1：使用2、获取
+            dpr.setPointsamount(point);
+            dpr.setRemark("投资" + pInfo.getFullName() + "金额" + amount + "元");
+            dpr.setAddtime(new Date());
+            drPointsRecordService.insertPointsRecord(dpr);
+            result = result + point;
+            //单笔达到5万元额外奖励100积分
+            if (amount.compareTo(new BigDecimal(50000)) >= 0) {
+                dpr.setPointsamount(100);
+                dpr.setRecordtype(6);//6、满5w额外赠送
+                dpr.setRemark("投资达5万元奖励100分");
+                dpr.setAddtime(new Date());
+                drPointsRecordService.insertPointsRecord(dpr);
+                result = result + 100;
+            }
+            funds.setTotalPoints(funds.getTotalPoints() + result);
+        } catch (Exception e) {
+            log.error("投资积分计算异常", e);
+        }
+        return result;
+    }
+
+    /**
+     * 尾投返现
+     *
+     * @param loginMember
+     * @param investId
+     * @param pid
+     * @param amount
+     * @param funds
+     * @return
+     */
+    private boolean tailCash(BigDecimal tail, DrMember loginMember, DrProductInfo pInfo, Integer investId, BigDecimal amount, DrMemberFunds funds) {
+        String remark = "尾单返现" + tail.intValue() + "元";
+        boolean flag = false;
+        try {
+            funds.setBalance(funds.getBalance().add(tail));
+            funds.setInvestProfit(funds.getInvestProfit().add(tail));
+            //添加用户资金日志
+            DrMemberFundsRecord fundsRecord = new DrMemberFundsRecord(pInfo.getId(), investId,
+                    loginMember.getUid(), 4, 1, tail, funds.getBalance(), 3, "投资【" + pInfo.getSimpleName() + "】产品的尾单奖励", null);
+            //公司日志
+            DrCompanyFundsLog companyLog = new DrCompanyFundsLog(11, loginMember.getUid(), pInfo.getId(), tail, 0, remark, null);
+            drMemberFundsRecordDAO.insert(fundsRecord);
+            //添加用户资金日志详细
+            DrMemberFundsLog fundslog = new DrMemberFundsLog(loginMember.getUid(), fundsRecord.getId(), tail, 20, 1, remark);
+            drMemberFundsLogDAO.insertDrMemberFundsLog(fundslog);
+            drCompanyFundsLogDAO.insertDrCompanyFundsLog(companyLog);
+            log.info(pInfo.getFullName() + "由用户" + loginMember.getRealName() + "尾投完成，返现" + tail.intValue() + "元");
+            flag = true;
+        } catch (Exception e) {
+            flag = false;
+            log.error("尾投返现异常", e);
+        }
+        return flag;
+    }
+
+    //自动上架
+    private void doAutoAdded(DrProductInfo pInfo) {
+        try {
+            List<DrProductInfo> products = this.drProductInfoDAO.selectAutoAddedProduct(pInfo.getFullName().substring(0, 3) + "%");
+            for (DrProductInfo product : products) {
+                DrSubjectInfo drSubjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(product.getSid());
+                int counts = Utils.daysBetween(product.getDeadline() + product.getRaiseDeadline() - 1, drSubjectInfo.getEndDate(), product.getStartDate());
+                if (counts > 0) {
+                    continue;
+                }
+
+                if (product.getAutoAmount().compareTo(pInfo.getSurplusAmount()) > 0) {
+                    product.setStartDate(new Date());
+                    product.setExpireDate(Utils.getDayNumOfAppointDate(Utils.parse(product.getStartDate(), "yyyy-MM-dd"), -(product.getDeadline() + product.getRaiseDeadline())));
+                    product.setEstablish(Utils.getDayNumOfAppointDate(Utils.parse(product.getStartDate(), "yyyy-MM-dd"), -(product.getRaiseDeadline())));
+                    product.setIsShow(1);
+                    product.setStatus(5);
+                    this.drProductInfoDAO.updateDrProductInfo(product);
+                    log.info(product.getFullName() + "自动上架成功");
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            if (Utils.isObjectNotEmpty(phoneNums)) {
+                String[] split = phoneNums.split(",");
+                for (String string : split) {
+                    try {
+                        SmsSendUtil.sendMsg(string, pInfo.getFullName() + "已结募集结束,后续产品自动上架失败请及时处理!", 1);
+                    } catch (Exception e1) {
+                        log.error("自动上架失败短信通知发送失败", e1);
+                    }
+                }
+            }
+            log.error("自动上架失败", e);
+        }
+    }
+
+    /**
+     * 实时发放红包金额
+     *
+     * @return
+     */
+    private void getInvestProfit(DrMemberFavourable dmf, DrProductInfo info, DrProductInvest invest, DrMemberFunds funds, DrMemberFundsRecord fundsRecord) {
+        try {
+            DrMemberFundsRecord record = new DrMemberFundsRecord(info.getId(), invest.getId(), invest.getUid(), 4, 1, dmf.getAmount(),
+                    funds.getBalance().add(dmf.getAmount()), 3, "投资产品【" + info.getFullName() + "】返现，投资金额：" + invest.getAmount(), null);
+            drMemberFundsRecordDAO.insert(record);
+            DrMemberFundsLog logs = new DrMemberFundsLog(invest.getUid(), fundsRecord.getId(), dmf.getAmount(),
+                    20, 1, "投资产品【" + info.getFullName() + "】返现，投资金额：" + invest.getAmount());
+            drMemberFundsLogDAO.insertDrMemberFundsLog(logs);
+
+            DrCompanyFundsLog cfundsLog = new DrCompanyFundsLog(11, invest.getUid(), info.getId(), dmf.getAmount(),
+                    0, "投资产品【" + info.getFullName() + "】返现，投资金额：" + invest.getAmount(), 0);
+            drCompanyFundsLogDAO.insertDrCompanyFundsLog(cfundsLog);
+            funds.setBalance(funds.getBalance().add(dmf.getAmount()));
+            funds.setInvestProfit(funds.getInvestProfit().add(dmf.getAmount()));
+        } catch (Exception e) {
+            log.error("实时发放红包金额异常", e);
+        }
+    }
+
+}

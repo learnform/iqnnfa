@@ -1,0 +1,27 @@
+package com.dr.dao.activity;
+
+import java.util.Map;
+
+import org.apache.ibatis.annotations.Param;
+
+import com.dr.model.activity.DrActivity;
+
+public interface DrActivityDAO {
+	
+	/**
+	 * 通过主键获取活动信息
+	 * @param id
+	 * @return
+	 */
+	public DrActivity selectByPrimaryKey(@Param(value="id") Integer id);
+	
+	
+	/**
+	 * 
+	 * selectInvestRanking:查询活动期间的用户排名
+	 * @param startDate
+	 * @param endDate
+	 * @return 
+	 */
+	Map<String,Object> selectInvestRanking(String startDate,String endDate);
+}

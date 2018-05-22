@@ -1,0 +1,5 @@
+package cn.iqnnfa.configClass;
+
+public @interface Action {
+
+}

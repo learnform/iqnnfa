@@ -1,0 +1,13 @@
+package iqnnfacloud;
+
+import java.util.Date;
+
+public class testMain {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		Date date = new Date("2018-4-13");
+		System.out.println(date);
+	}
+
+}
