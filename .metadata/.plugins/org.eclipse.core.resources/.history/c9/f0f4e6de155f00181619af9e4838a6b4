@@ -1,0 +1,9 @@
+package cn.iqnnfa.configClass;
+
+public class QueueLeader {
+	
+	public static void main(String[] args) {
+		
+		
+	}
+}

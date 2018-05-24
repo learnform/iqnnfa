@@ -1,9 +1,10 @@
 package cn.iqnnfa;
 
-import org.apache.catalina.Context;
 import org.apache.catalina.connector.Connector;
+import org.apache.solr.common.cloud.ZkClientConnectionStrategy;
 import org.apache.tomcat.util.descriptor.web.SecurityCollection;
 import org.apache.tomcat.util.descriptor.web.SecurityConstraint;
+import org.apache.zookeeper.client.ZooKeeperSaslClient;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -18,6 +19,7 @@ public class iqnnfa extends SpringBootServletInitializer{
 	
     protected SpringApplicationBuilder configure(SpringApplicationBuilder application) {  
 	        return application.sources(iqnnfa.class);  
+	        
 	 } 
 
 	public static void main(String[] args) {

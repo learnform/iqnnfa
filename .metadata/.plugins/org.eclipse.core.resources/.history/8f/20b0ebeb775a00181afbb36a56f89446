@@ -1,8 +1,0 @@
-package cn.iqnnfa.model;
-
-import org.springframework.boot.context.properties.ConfigurationProperties;
-
-@ConfigurationProperties(prefix="http.encoding")
-public class HttpEncodingProperties {
-
-}

@@ -1,8 +1,0 @@
-package cn.iqnnfa.configClass;
-
-import org.springframework.context.ApplicationEvent;
-
-public class iqnnfaEvent extends ApplicationContextEvent{
-
-	
-}

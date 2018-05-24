@@ -43,7 +43,7 @@ public class AnnotationInterceptor implements HandlerInterceptor{
 	    		 System.out.println("注解不需要");
 	    	 }
 	      }
-		return false;
+		return true;
 	}
 
 }

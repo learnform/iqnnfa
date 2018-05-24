@@ -1,6 +1,0 @@
-server:
-  port: 8083
-  contextPath: /findMemberByUid
-spring: 
- profiles: 
-  active: dev

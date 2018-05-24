@@ -1,0 +1,11 @@
+package cn.iqnnfa.configClass;
+
+import sun.misc.Queue;
+
+public class QueueLeader {
+	
+	public static void main(String[] args) {
+		
+		
+	}
+}
