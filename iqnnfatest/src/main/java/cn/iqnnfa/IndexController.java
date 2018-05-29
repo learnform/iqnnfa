@@ -28,9 +28,11 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import cn.iqnnfa.configClass.Action;
+import cn.iqnnfa.configClass.CallBackSender;
 import cn.iqnnfa.configClass.PropertyUtil;
 import cn.iqnnfa.model.DrMember;
 import cn.iqnnfa.service.IndexService;
+import cn.iqnnfa.task.FanoutSender;
 
 @RestController
 // @EnableConfigurationProperties({ConfiguraBean.class,User.class})
@@ -40,6 +42,10 @@ public class IndexController {
 
 	@Autowired
 	private AmqpTemplate amqpTemplate;
+	@Autowired
+	private FanoutSender fanoutSender;
+	@Autowired
+	private CallBackSender callBackSender;
 	
 	@Value("${activityMsg}")
 	private String name;
@@ -91,13 +97,8 @@ public class IndexController {
 	}
 
 	@RequestMapping(value = "/push")
-	public @ResponseBody String push() {
-		Random a = new Random();
-		try {
-			Thread.sleep(5000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+	public String push() {
+		callBackSender.send();
 		return "index";
 	}
 

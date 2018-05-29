@@ -1,6 +1,5 @@
 package cn.iqnnfa;
 
-import org.apache.catalina.connector.Connector;
 import org.apache.solr.common.cloud.ZkClientConnectionStrategy;
 import org.apache.tomcat.util.descriptor.web.SecurityCollection;
 import org.apache.tomcat.util.descriptor.web.SecurityConstraint;

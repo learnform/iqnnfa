@@ -1,0 +1,1193 @@
+package com.dr.service.product.impl;
+
+import com.alibaba.fastjson.JSONObject;
+import com.dr.common.*;
+import com.dr.dao.activity.DrMemberFavourableDAO;
+import com.dr.dao.claims.DrAuditInfoDAO;
+import com.dr.dao.claims.DrClaimsLoanDAO;
+import com.dr.dao.claims.DrClaimsPicDAO;
+import com.dr.dao.member.*;
+import com.dr.dao.product.*;
+import com.dr.dao.subject.DrSubjectInfoDAO;
+import com.dr.model.activity.DrMemberFavourable;
+import com.dr.model.claims.DrAuditInfo;
+import com.dr.model.claims.DrClaimsPic;
+import com.dr.model.member.*;
+import com.dr.model.product.*;
+import com.dr.model.subject.DrSubjectInfo;
+import com.dr.model.system.SysMessageLog;
+import com.dr.service.product.DrProductInfoService;
+import com.dr.service.system.SysMessageLogService;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
+import java.sql.SQLException;
+import java.util.*;
+
+@Service
+@Transactional
+public class DrProductInfoServiceImpl implements DrProductInfoService {
+	private Logger log = Logger.getLogger(this.getClass());
+	@Autowired
+	private DrProductInfoDAO drProductInfoDAO;
+	@Autowired
+	private DrClaimsPicDAO drClaimsPicDAO;
+	@Autowired
+	private DrSubjectInfoDAO drSubjectInfoDAO;
+	@Autowired
+	private DrAuditInfoDAO drAuditInfoDAO;
+	@Autowired
+	private DrProductInvestDAO drProductInvestDAO;
+	@Autowired
+	private DrProductInvestRepayInfoDAO drProductInvestRepayInfoDAO;
+	@Autowired
+	private DrClaimsLoanDAO drClaimsLoanDAO;
+	@Autowired
+	private DrMemberDAO drMemberDAO;
+	@Autowired
+	private DrMemberFundsDAO drMemberFundsDAO;
+	@Autowired
+	private DrMemberFundsRecordDAO drMemberFundsRecordDAO;
+	@Autowired
+	private DrMemberFundsLogDAO drMemberFundsLogDAO;
+	@Autowired
+	private DrCompanyFundsLogDAO drCompanyFundsLogDAO;
+	@Autowired
+	private DrProductPicDAO drProductPicDAO;
+	@Autowired
+	private DrMemberMsgDAO drMemberMsgDAO;
+	@Autowired
+	private DrMemberFavourableDAO drMemberFavourableDAO;
+	@Autowired
+	private SysMessageLogService sysMessageLogService;
+	@Autowired
+	private DrProductExtendDAO drProductExtendDAO;
+	@Autowired
+	private DrProductRepairDAO drProductRepairDAO;
+	
+	@Override
+	public BaseResult getDrProductInfoList(DrProductInfo drProductInfo,PageInfo pi) {
+		Map<String,PageInfo> resultMap = new HashMap<String,PageInfo>();
+		Map<String,Object> map=new HashMap<String,Object>();
+		map.put("simpleName", drProductInfo.getSimpleName());
+		map.put("code", drProductInfo.getCode());
+		map.put("deadline", drProductInfo.getDeadline());
+		map.put("surplusDay", drProductInfo.getSurplusDay());
+		map.put("isAuto", drProductInfo.getIsAuto());
+		map.put("dateStart", drProductInfo.getDateStart());
+		map.put("dateEnd", drProductInfo.getDateEnd());
+		map.put("dateStart1", drProductInfo.getDateStart1());
+		map.put("dateEnd1", drProductInfo.getDateEnd1());
+		map.put("type", drProductInfo.getType());
+		if(drProductInfo.getStatus() == null){
+			map.put("status", drProductInfo.getStatus());
+		}else{
+			if(drProductInfo.getStatus() == 100){//显示审核页面
+				map.put("status", new Integer[]{1,3});
+			}else{
+				map.put("status", new Integer[]{drProductInfo.getStatus()});
+			}
+		}
+		map.put("sid", drProductInfo.getSid());
+		map.put("offset",pi.getPageInfo().getOffset());
+		map.put("limit",pi.getPageInfo().getLimit()); 
+		List<DrProductInfo> list = drProductInfoDAO.getDrProductInfoList(map);
+		Integer total = drProductInfoDAO.getDrProductInfoCounts(map);
+		pi.setTotal(total);
+		pi.setRows(list);
+		resultMap.put("page", pi);
+		BaseResult br = new BaseResult();
+		br.setMap(resultMap);
+		return br;
+	}
+
+	@Override
+	public DrProductInfo getDrProductInfoByid(Integer id) {
+		return drProductInfoDAO.getDrProductInfoByid(id);
+	}
+
+	@Override
+	public BaseResult updateDrProductInfo(DrProductInfo drProductInfo,MultipartFile[] productFiles,@RequestParam MultipartFile acceptPicFile)throws Exception {
+		BaseResult br = new BaseResult();
+		drProductInfo.setIsHot(drProductInfo.getIsHot() == null ? 0 : drProductInfo.getIsHot());
+		drProductInfo.setIsDeductible(drProductInfo.getIsDeductible() == null ? 0 : drProductInfo.getIsDeductible());
+		drProductInfo.setIsInterest(drProductInfo.getIsInterest() == null ? 0 : drProductInfo.getIsInterest());
+		drProductInfo.setIsCash(drProductInfo.getIsCash() == null ? 0 : drProductInfo.getIsCash());
+		drProductInfo.setIsDouble(drProductInfo.getIsDouble() == null ? 0 : drProductInfo.getIsDouble());
+		drProductInfo.setIsRepair(drProductInfo.getIsRepair() == null ? 0 : drProductInfo.getIsRepair());
+		
+		if (!verifyProductInfo(drProductInfo, br).isSuccess()) {
+			return br;
+		}
+		
+		log.info("产品修改--判断是否新手标开始");
+		
+		if(1 == drProductInfo.getType()){
+			Map<String,Object> map = new HashMap<String,Object>();
+			map.put("type", 1);
+			map.put("status",5);
+			DrProductInfo queryProductInfo = drProductInfoDAO.getDrProductInfoByMap(map);
+			if(Utils.isObjectNotEmpty(queryProductInfo)){
+				br.setErrorMsg("已发过新手标！");
+				br.setSuccess(false);
+				return br;
+			}
+		}
+		
+		log.info("产品修改--判断是否新手标结束");
+		
+		log.info("产品修改--判断是否修改开始");
+		
+		DrProductInfo queryProductInfo = drProductInfoDAO.getDrProductInfoByid(drProductInfo.getId());
+		if(queryProductInfo.getStatus() != 1 && queryProductInfo.getStatus() != 3 && queryProductInfo.getStatus() != 2){
+			br.setErrorMsg("该产品不可修改！");
+			br.setSuccess(false);
+			return br;
+		}
+
+		log.info("产品修改--判断是否修改结束");
+		log.info("产品修改--修改开始");
+		
+		drProductInfo.setSurplusAmount(drProductInfo.getAmount());
+		drProductInfo.setAlreadyRaiseAmount(new BigDecimal(0));
+		drProductInfo.setRiskLevel(drProductInfo.getRiskLevel());
+		
+		DrSubjectInfo drSubjectInfo = null;
+		if(queryProductInfo.getType() != 1){
+			drSubjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(queryProductInfo.getSid());
+			drSubjectInfo.setSurplusAmount(drSubjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)));
+			drSubjectInfo.setAmount(drSubjectInfo.getAmount().multiply(new BigDecimal(10000)));
+			
+			drSubjectInfo.setSurplusAmount(Utils.nwdBcadd(drSubjectInfo.getSurplusAmount(), queryProductInfo.getAmount()));
+		}
+		if(drProductInfo.getType() != 1){
+			if(Utils.isObjectNotEmpty(drProductInfo.getSid())){
+				if(queryProductInfo.getSid() != drProductInfo.getSid()){
+					DrSubjectInfo subjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(drProductInfo.getSid());
+					subjectInfo.setSurplusAmount(subjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)));
+					subjectInfo.setAmount(subjectInfo.getAmount().multiply(new BigDecimal(10000)));
+					
+					int counts = Utils.daysBetween(drProductInfo.getDeadline()+drProductInfo.getRaiseDeadline()-1,subjectInfo.getEndDate(),null);
+					if(counts>0){
+						br.setErrorMsg("产品到期日不可大于标的到期日【"+Utils.format(subjectInfo.getEndDate(), "yyyy-MM-dd")+"】！");
+						br.setSuccess(false);
+						return br;
+					}
+					
+					if(drProductInfo.getAmount().compareTo(subjectInfo.getSurplusAmount())<=0){
+						subjectInfo.setSurplusAmount(Utils.nwdBcsub(subjectInfo.getSurplusAmount(), drProductInfo.getAmount()));
+						subjectInfo.setStatus(2);
+						drSubjectInfoDAO.updateDrSubjectInfo(subjectInfo);
+					}else{
+						br.setErrorMsg("产品金额不能大于标的剩余金额【"+subjectInfo.getSurplusAmount()+"】！");
+						br.setSuccess(false);
+						return br;
+					}
+
+				}else{
+					if(drProductInfo.getAmount().compareTo(drSubjectInfo.getSurplusAmount())<=0){
+						drSubjectInfo.setSurplusAmount(Utils.nwdBcsub(drSubjectInfo.getSurplusAmount(), drProductInfo.getAmount()));
+					}else{
+						br.setErrorMsg("产品金额不能大于标的剩余金额【"+drSubjectInfo.getSurplusAmount()+"】！");
+						br.setSuccess(false);
+						return br;
+					}
+					int counts = Utils.daysBetween(drProductInfo.getDeadline()+drProductInfo.getRaiseDeadline()-1,drSubjectInfo.getEndDate(),null);
+					if(counts>0){
+						br.setErrorMsg("产品到期日不可大于标的到期日【"+Utils.format(drSubjectInfo.getEndDate(), "yyyy-MM-dd")+"】！");
+						br.setSuccess(false);
+						return br;
+					}
+				}
+			}else{
+				br.setErrorMsg("请选择标的！");
+				br.setSuccess(false);
+				return br;
+			}
+		}else{
+			drProductInfo.setIsSid(0);
+			drProductInfo.setSid(null);
+		}
+		if(Utils.isObjectNotEmpty(drSubjectInfo)){
+			drSubjectInfoDAO.updateDrSubjectInfo(drSubjectInfo);
+		}
+		drProductInfo.setStatus(1);
+		
+		SFtpUtil sftp = new SFtpUtil();
+		
+		if(Utils.isObjectNotEmpty(acceptPicFile)){
+			String realPath = ConfigUtil.getImgFileUrl() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/";
+			String savePath = ConfigUtil.getDomainname() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/";
+			String imageName = ImageUtils.getServerFileName()
+					+ acceptPicFile.getOriginalFilename().substring(
+							acceptPicFile.getOriginalFilename().lastIndexOf("."));
+			sftp.connectServer();
+			sftp.put(acceptPicFile.getInputStream(), realPath, imageName);
+			sftp.closeServer();
+			drProductInfo.setAcceptPic(savePath+imageName);
+		}
+		
+		drProductInfoDAO.updateDrProductInfo(drProductInfo);
+
+		log.info("产品修改--修改结束");
+		log.info("产品修改--修改扩展开始");
+		
+		List<DrProductExtend> drProductExtendList = drProductInfo.getDrProductExtend();
+		drProductExtendDAO.deleteDrProductExtendByPid(drProductInfo.getId());
+		if(!Utils.isEmptyList(drProductExtendList)){
+			for(DrProductExtend drProductExtend : drProductExtendList){
+				if(!Utils.strIsNull(drProductExtend.getTitle())){
+					drProductExtend.setPid(drProductInfo.getId());
+					drProductExtend.setAddUser(drProductInfo.getAddUser());
+					drProductExtendDAO.insertDrProductExtend(drProductExtend);
+				}
+			}
+		}
+		log.info("产品修改--修改扩展结束");
+		
+		log.info("产品修改--修改图片开始");
+		if(drProductInfo.getType() == 3 || drProductInfo.getType() == 2){
+			List<DrClaimsPic> drClaimsPicList = drProductInfo.getDrClaimsPic();
+			if(!Utils.isEmptyList(drClaimsPicList)){
+				for(DrClaimsPic drClaimsPic : drClaimsPicList){
+					drClaimsPic.setIsShow(drClaimsPic.getIsShow() == null ? 0 : drClaimsPic.getIsShow());
+					drClaimsPicDAO.updateDrClaimsPic(drClaimsPic);
+				}
+			}
+		}
+		String realPath = ConfigUtil.getImgFileUrl() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/" + drProductInfo.getId() + "/";
+		String savePath = ConfigUtil.getDomainname() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/" + drProductInfo.getId() + "/";
+		
+		List<DrProductPic> list = drProductInfo.getDrProductPic();
+
+		if(Utils.isEmptyList(list)){
+			drProductPicDAO.deleteDrProductPicByPid(drProductInfo.getId());
+		}else{
+			List<DrProductPic> useProductPic = new ArrayList<DrProductPic>();
+			for(DrProductPic pic : list){
+				if("use".equals(pic.getBigUrl())){
+					useProductPic.add(pic);
+				}
+			}
+			
+			if(productFiles.length > 0){
+				for(int i=0;i<productFiles.length;i++){
+					String imageName = ImageUtils.getServerFileName()
+							+ productFiles[i].getOriginalFilename().substring(
+									productFiles[i].getOriginalFilename().lastIndexOf("."));
+					if(useProductPic.get(i).getId() != null){
+						useProductPic.get(i).setBigUrl(savePath+imageName);
+						sftp.connectServer();
+						sftp.put(productFiles[i].getInputStream(), realPath, imageName);
+						sftp.closeServer();
+						drProductPicDAO.updateDrProductPic(useProductPic.get(i));
+					}else{
+						useProductPic.get(i).setStatus(1);
+						useProductPic.get(i).setPid(drProductInfo.getId());
+						useProductPic.get(i).setBigUrl(savePath+imageName);
+						drProductPicDAO.insertDrProductPic(useProductPic.get(i));
+						sftp.connectServer();
+						sftp.put(productFiles[i].getInputStream(), realPath, imageName);
+						sftp.closeServer();
+					}
+				}
+			}else{
+				for(DrProductPic drProductPic : list){
+					if(drProductPic.getId() != null){
+						drProductPicDAO.updateDrProductPic(drProductPic);
+					}
+				}
+			}
+		}
+		log.info("产品修改--修改图片结束");
+		br.setMsg("修改成功!");
+		br.setSuccess(true);
+		return br;
+		
+	}
+
+	@Override
+	public BaseResult insertDrProductInfo(DrProductInfo drProductInfo,
+			@RequestParam MultipartFile[] productFiles,@RequestParam MultipartFile acceptPicFile)throws Exception {
+		BaseResult br = new BaseResult();
+		
+		drProductInfo.setIsHot(drProductInfo.getIsHot() == null ? 0 : drProductInfo.getIsHot());
+		drProductInfo.setIsDeductible(drProductInfo.getIsDeductible() == null ? 0 : drProductInfo.getIsDeductible());
+		drProductInfo.setIsInterest(drProductInfo.getIsInterest() == null ? 0 : drProductInfo.getIsInterest());
+		drProductInfo.setIsCash(drProductInfo.getIsCash() == null ? 0 : drProductInfo.getIsCash());
+		drProductInfo.setIsDouble(drProductInfo.getIsDouble() == null ? 0 : drProductInfo.getIsDouble());
+		drProductInfo.setIsRepair(drProductInfo.getIsRepair() == null ? 0 : drProductInfo.getIsRepair());
+		
+		if (!verifyProductInfo(drProductInfo, br).isSuccess()) {
+			return br;
+		}
+		
+		log.info("产品添加--开始判断是否新手标");
+		if(1 == drProductInfo.getType()){
+			Map<String,Object> map = new HashMap<String,Object>();
+			map.put("type", 1);
+			map.put("status", 5);
+			DrProductInfo queryProductInfo = drProductInfoDAO.getDrProductInfoByMap(map);
+			if(Utils.isObjectNotEmpty(queryProductInfo)){
+				br.setErrorMsg("已发过新手标！");
+				br.setSuccess(false);
+				return br;
+			}
+		}
+		log.info("产品添加--结束判断是否新手标");
+		
+		log.info("产品添加--开始添加产品");
+		drProductInfo.setSurplusAmount(drProductInfo.getAmount());
+		drProductInfo.setAlreadyRaiseAmount(new BigDecimal(0));
+		drProductInfo.setRiskLevel(drProductInfo.getRiskLevel());
+		
+		drProductInfo.setIsShow(1);
+
+		if(drProductInfo.getType() != 1){
+			if(Utils.isObjectNotEmpty(drProductInfo.getSid())){
+				DrSubjectInfo drSubjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(drProductInfo.getSid());
+				drSubjectInfo.setSurplusAmount(drSubjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)));
+				drSubjectInfo.setAmount(drSubjectInfo.getAmount().multiply(new BigDecimal(10000)));
+				
+				int counts = Utils.daysBetween(drProductInfo.getDeadline()+drProductInfo.getRaiseDeadline()-1,drSubjectInfo.getEndDate(),null);
+				if(counts>0){
+					br.setErrorMsg("产品到期日不可大于标的到期日【"+Utils.format(drSubjectInfo.getEndDate(), "yyyy-MM-dd")+"】！");
+					br.setSuccess(false);
+					return br;
+				}
+				
+				if(drProductInfo.getAmount().compareTo(drSubjectInfo.getSurplusAmount())<=0){
+					drSubjectInfo.setSurplusAmount(Utils.nwdBcsub(drSubjectInfo.getSurplusAmount(), drProductInfo.getAmount()));
+					drSubjectInfo.setStatus(2);
+					drSubjectInfoDAO.updateDrSubjectInfo(drSubjectInfo);
+				}else{
+					br.setErrorMsg("产品金额不能大于标的剩余金额【"+drSubjectInfo.getSurplusAmount()+"】！");
+					br.setSuccess(false);
+					return br;
+				}
+			}else{
+				br.setErrorMsg("请关联标的！");
+				br.setSuccess(false);
+				return br;
+			}
+		}else{
+			drProductInfo.setIsSid(0);
+			drProductInfo.setSid(null);
+		}
+		
+		SFtpUtil sftp = new SFtpUtil();
+		
+		if(Utils.isObjectNotEmpty(acceptPicFile)){
+			String realPath = ConfigUtil.getImgFileUrl() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/";
+			String savePath = ConfigUtil.getDomainname() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/";
+			String imageName = ImageUtils.getServerFileName()
+					+ acceptPicFile.getOriginalFilename().substring(
+							acceptPicFile.getOriginalFilename().lastIndexOf("."));
+			sftp.connectServer();
+			sftp.put(acceptPicFile.getInputStream(), realPath, imageName);
+			sftp.closeServer();
+			drProductInfo.setAcceptPic(savePath+imageName);
+		}
+		drProductInfoDAO.insertDrProductInfo(drProductInfo);
+		
+		log.info("产品添加--结束添加产品");
+		
+		log.info("产品添加--开始添加产品扩展");
+		List<DrProductExtend> drProductExtendList = drProductInfo.getDrProductExtend();
+		
+		if(!Utils.isEmptyList(drProductExtendList)){
+			for(DrProductExtend drProductExtend : drProductExtendList){
+				if(!Utils.strIsNull(drProductExtend.getTitle())){
+					drProductExtend.setPid(drProductInfo.getId());
+					drProductExtend.setAddUser(drProductInfo.getAddUser());
+					drProductExtendDAO.insertDrProductExtend(drProductExtend);
+				}
+			}
+		}
+		log.info("产品添加--结束添加产品扩展");
+		
+		log.info("产品添加--开始添加产品图片");
+		if(drProductInfo.getType() == 3 || drProductInfo.getType() == 2){
+			List<DrClaimsPic> drClaimsPicList = drProductInfo.getDrClaimsPic();
+			if(!Utils.isEmptyList(drClaimsPicList)){
+				for(DrClaimsPic drClaimsPic : drClaimsPicList){
+					drClaimsPic.setIsShow(drClaimsPic.getIsShow() == null ? 0 : drClaimsPic.getIsShow());
+					drClaimsPicDAO.updateDrClaimsPic(drClaimsPic);
+				}
+			}
+		}
+		
+		List<DrProductPic> list = drProductInfo.getDrProductPic();
+		List<DrProductPic> useProductPic = new ArrayList<DrProductPic>();
+		if(!Utils.isEmptyList(list)){
+			for(DrProductPic pic : list){
+				if("use".equals(pic.getBigUrl())){
+					useProductPic.add(pic);
+				}
+			}
+		}
+		
+		String realPath = ConfigUtil.getImgFileUrl() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/" + drProductInfo.getId() + "/";
+		String savePath = ConfigUtil.getDomainname() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/" + drProductInfo.getId() + "/";
+		
+        for(int i=0;i<productFiles.length;i++){	
+			String imageName = ImageUtils.getServerFileName()
+					+ productFiles[i].getOriginalFilename().substring(
+							productFiles[i].getOriginalFilename().lastIndexOf("."));
+			
+			DrProductPic drProductPic = new DrProductPic();
+			drProductPic.setPid(drProductInfo.getId());
+			drProductPic.setBigUrl(savePath+imageName);
+			drProductPic.setName(useProductPic.get(i).getName());
+			drProductPic.setIsShow(useProductPic.get(i).getIsShow()== null ? 0 : useProductPic.get(i).getIsShow());
+			drProductPic.setShowSort(useProductPic.get(i).getShowSort());
+			drProductPic.setStatus(1);
+			drProductPicDAO.insertDrProductPic(drProductPic);
+			
+			sftp.connectServer();
+			sftp.put(productFiles[i].getInputStream(), realPath, imageName);
+			sftp.closeServer();
+        }
+		log.info("产品添加--开始产品图片");
+		br.setMsg("添加成功!");
+		br.setSuccess(true);
+		return br;
+	}
+
+	@Override
+	public BaseResult insertDrProductInfoRenewal(DrProductInfo drProductInfo,
+			@RequestParam MultipartFile[] productFiles,@RequestParam MultipartFile acceptPicFile)throws Exception {
+		BaseResult br = new BaseResult();
+		drProductInfo.setIsHot(drProductInfo.getIsHot() == null ? 0 : drProductInfo.getIsHot());
+		drProductInfo.setIsDeductible(drProductInfo.getIsDeductible() == null ? 0 : drProductInfo.getIsDeductible());
+		drProductInfo.setIsInterest(drProductInfo.getIsInterest() == null ? 0 : drProductInfo.getIsInterest());
+		drProductInfo.setIsCash(drProductInfo.getIsCash() == null ? 0 : drProductInfo.getIsCash());
+		drProductInfo.setIsDouble(drProductInfo.getIsDouble() == null ? 0 : drProductInfo.getIsDouble());
+		drProductInfo.setIsRepair(drProductInfo.getIsRepair() == null ? 0 : drProductInfo.getIsRepair());
+		
+		if (!verifyProductInfo(drProductInfo, br).isSuccess()) {
+			return br;
+		}
+		
+		if(2 == drProductInfo.getType()){
+			Map<String,Object> map = new HashMap<String,Object>();
+			map.put("fid", drProductInfo.getFid());
+			map.put("noStatus", 4);
+			DrProductInfo queryProductInfo = drProductInfoDAO.getDrProductInfoByMap(map);
+			if(Utils.isObjectNotEmpty(queryProductInfo)){
+				br.setErrorMsg("该产品已续发！");
+				br.setSuccess(false);
+				return br;
+			}
+		}
+		
+		drProductInfo.setSurplusAmount(drProductInfo.getAmount());
+		drProductInfo.setAlreadyRaiseAmount(new BigDecimal(0));
+		
+		drProductInfo.setIsShow(1);
+
+		if(drProductInfo.getType() != 1){
+			if(Utils.isObjectNotEmpty(drProductInfo.getSid())){
+				DrSubjectInfo drSubjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(drProductInfo.getSid());
+				
+				int counts = Utils.daysBetween(drProductInfo.getDeadline()+drProductInfo.getRaiseDeadline()-1,drSubjectInfo.getEndDate(),null);
+				if(counts>0){
+					br.setErrorMsg("产品到期日不可大于标的到期日【"+Utils.format(drSubjectInfo.getEndDate(), "yyyy-MM-dd")+"】！");
+					br.setSuccess(false);
+					return br;
+				}
+			}else{
+				br.setErrorMsg("请关联标的！");
+				br.setSuccess(false);
+				return br;
+			}
+		}else{
+			drProductInfo.setIsSid(0);
+			drProductInfo.setSid(null);
+		}
+		
+		SFtpUtil sftp = new SFtpUtil();
+		
+		if(Utils.isObjectNotEmpty(acceptPicFile)){
+			String realPath = ConfigUtil.getImgFileUrl() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/";
+			String savePath = ConfigUtil.getDomainname() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/";
+			String imageName = ImageUtils.getServerFileName()
+					+ acceptPicFile.getOriginalFilename().substring(
+							acceptPicFile.getOriginalFilename().lastIndexOf("."));
+			sftp.connectServer();
+			sftp.put(acceptPicFile.getInputStream(), realPath, imageName);
+			sftp.closeServer();
+			drProductInfo.setAcceptPic(savePath+imageName);
+		}
+		drProductInfoDAO.insertDrProductInfo(drProductInfo);
+		
+		List<DrProductExtend> drProductExtendList = drProductInfo.getDrProductExtend();
+		
+		if(!Utils.isEmptyList(drProductExtendList)){
+			for(DrProductExtend drProductExtend : drProductExtendList){
+				if(!Utils.strIsNull(drProductExtend.getTitle())){
+					drProductExtend.setPid(drProductInfo.getId());
+					drProductExtend.setAddUser(drProductInfo.getAddUser());
+					drProductExtendDAO.insertDrProductExtend(drProductExtend);
+				}
+			}
+		}
+		
+		if(drProductInfo.getType() != 1){
+			List<DrClaimsPic> drClaimsPicList = drProductInfo.getDrClaimsPic();
+			if(!Utils.isEmptyList(drClaimsPicList)){
+				for(DrClaimsPic drClaimsPic : drClaimsPicList){
+					drClaimsPic.setIsShow(drClaimsPic.getIsShow() == null ? 0 : drClaimsPic.getIsShow());
+					drClaimsPicDAO.updateDrClaimsPic(drClaimsPic);
+				}
+			}
+		}
+		
+		String realPath = ConfigUtil.getImgFileUrl() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/" + drProductInfo.getId() + "/";
+		String savePath = ConfigUtil.getDomainname() + ConfigUtil.productPic + Utils.format(new Date(), "yyyy-MM") + "/" + drProductInfo.getId() + "/";
+		
+		List<DrProductPic> list = drProductInfo.getDrProductPic();
+
+		if(!Utils.isEmptyList(list)){
+			/*List<DrProductPic> useProductPic = new ArrayList<DrProductPic>();
+			for(DrProductPic pic : list){
+				pic.setPid(drProductInfo.getId());
+				if("use".equals(pic.getBigUrl())){
+					useProductPic.add(pic);
+				}
+			}*/
+			
+			if(productFiles.length > 0){
+				for(int i=0;i<productFiles.length;i++){
+					String imageName = ImageUtils.getServerFileName()
+							+ productFiles[i].getOriginalFilename().substring(
+									productFiles[i].getOriginalFilename().lastIndexOf("."));
+					if(list.get(i).getId() != null){
+						list.get(i).setBigUrl(savePath+imageName);
+						sftp.connectServer();
+						sftp.put(productFiles[i].getInputStream(), realPath, imageName);
+						sftp.closeServer();
+						drProductPicDAO.insertDrProductPic(list.get(i));
+					}else{
+						list.get(i).setStatus(1);
+						list.get(i).setPid(drProductInfo.getId());
+						list.get(i).setBigUrl(savePath+imageName);
+						drProductPicDAO.insertDrProductPic(list.get(i));
+						sftp.connectServer();
+						sftp.put(productFiles[i].getInputStream(), realPath, imageName);
+						sftp.closeServer();
+					}
+				}
+			}else{
+				for(DrProductPic drProductPic : list){
+					if(drProductPic.getId() != null){
+						drProductPicDAO.insertDrProductPic(drProductPic);
+					}
+				}
+			}
+		}
+		
+		br.setMsg("续发成功!");
+		br.setSuccess(true);
+		return br;
+	}
+	
+	/**
+	 * 新增产品 校验
+	 * 
+	 * 1.翻倍券 （可否加倍） 对于所有标期≥15天的产品，勾选了翻倍券
+	 * 2.红包 （可否返现）  对于所有标期≤14天的产品，勾选了返现红包
+	 * 3.基础利息 （年化利率） 标的基础利息≥15%
+	 * 4.相同标的名称 有相同名称的产品已存在(产品全称)
+	 * 5.最大投资金额超过产品总金额
+	 * 
+	 */
+	private BaseResult verifyProductInfo(DrProductInfo drProductInfo, BaseResult br) {
+		log.info("产品添加--校验产品信息-开始");
+		//1.翻倍券 （可否加倍） 对于所有标期≥15天的产品，勾选了翻倍券
+		if (drProductInfo.getDeadline() >= 15 && drProductInfo.getIsDouble() == 1) {
+			br.setSuccess(false);
+			br.setErrorMsg("产品期限≥15天，无法使用翻倍券！");
+			return br;
+		}
+		//2.红包 （可否返现）  对于所有标期≤14天的产品，勾选了返现红包
+//		if (drProductInfo.getDeadline() <= 14 && drProductInfo.getIsCash() == 1) {
+//			br.setSuccess(false);
+//			br.setErrorMsg("产品期限≤14天，无法使用返现红包！");
+//			return br;
+//		}
+		//3.基础利息 （年化利率） 标的基础利息≥15%
+		if (drProductInfo.getRate().compareTo(BigDecimal.valueOf(20)) > 0) {
+			br.setSuccess(false);
+			br.setErrorMsg("产品年化利率不能大于20%！");
+			return br;
+		}
+		
+		//4.相同标的名称 有相同名称的产品已存在(产品全称)
+		Map<String,Object> map = new HashMap<String, Object>();
+		map.put("fullName", drProductInfo.getFullName());
+		map.put("noId", drProductInfo.getId());
+		List<DrProductInfo> list = drProductInfoDAO.getDrProductInfoListByMap(map);
+		if (!Utils.isEmptyList(list)) {
+			br.setSuccess(false);
+			br.setErrorMsg("已有同名产品！请重新填写产品全称！");
+			return br;
+		}
+		
+		//5.最大投资金额超过该标期总金额
+		if (drProductInfo.getMaxAmount().compareTo(drProductInfo.getAmount()) > 0) {
+			br.setSuccess(false);
+			br.setErrorMsg("单笔限投不能超过产品总额！");
+			return br;
+		}
+		
+		log.info("产品添加--校验产品信息-成功结束");
+		br.setSuccess(true);
+		return br;
+	}
+	
+	@Override
+	public BaseResult insertDrAuditInfo(DrAuditInfo drAuditInfo) throws Exception {
+		BaseResult br = new BaseResult();
+		DrProductInfo drProductInfo = new DrProductInfo();
+		drProductInfo.setId(drAuditInfo.getFid());
+		if(drAuditInfo.getStatus() == 1){
+			drProductInfo.setStatus(2);
+		}
+		if(drAuditInfo.getStatus() == 2){
+			drProductInfo.setStatus(3);
+		}
+		if(drAuditInfo.getStatus() == 3){
+			DrProductInfo queryDrProductInfo = drProductInfoDAO.getDrProductInfoByid(drAuditInfo.getFid());
+			if(1 != queryDrProductInfo.getType()){
+				DrSubjectInfo drSubjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(queryDrProductInfo.getSid());
+				drSubjectInfo.setSurplusAmount(drSubjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)));
+				drSubjectInfo.setAmount(drSubjectInfo.getAmount().multiply(new BigDecimal(10000)));
+				drSubjectInfo.setSurplusAmount(Utils.nwdBcadd(drSubjectInfo.getSurplusAmount(), queryDrProductInfo.getAmount()));
+				
+				int counts = Utils.daysBetween(queryDrProductInfo.getDeadline()+queryDrProductInfo.getRaiseDeadline()-1,drSubjectInfo.getEndDate(),null);
+				if(counts>0){
+					br.setErrorMsg("产品到期日不可大于标的到期日【"+Utils.format(drSubjectInfo.getEndDate(), "yyyy-MM-dd")+"】！");
+					br.setSuccess(false);
+					return br;
+				}
+				
+				Map<String,Object> map = new HashMap<String,Object>();
+				map.put("sid", queryDrProductInfo.getSid());
+				map.put("status", 4);
+				List<DrProductInfo> list = drProductInfoDAO.getDrProductInfoListByMap(map);
+				if(4 != drSubjectInfo.getStatus()){
+					if(list.size() <= 1){
+						drSubjectInfo.setStatus(1);
+					}
+				}
+				drSubjectInfoDAO.updateDrSubjectInfo(drSubjectInfo);
+			}
+			drProductInfo.setStatus(4);
+			
+			DrProductPic drProductPic = new DrProductPic();
+			drProductPic.setPid(drAuditInfo.getFid());
+			drProductPic.setStatus(0);
+			drProductPicDAO.updateDrProductPic(drProductPic);
+		}
+		drAuditInfoDAO.insertDrAuditInfo(drAuditInfo);
+		//审核后自动上架配置需要重新设置
+		drProductInfo.setIsAuto(0);
+		drProductInfo.setAutoAmount(null);
+		drProductInfo.setImmediately(0);
+		drProductInfoDAO.updateDrProductInfo(drProductInfo);
+		br.setMsg("审核成功!");
+		br.setSuccess(true);
+		return br;
+	}
+
+	@Override
+	public BaseResult updateDrProductStatus(DrProductInfo drProductInfo,String validatorSid)throws Exception {
+		BaseResult br = new BaseResult();
+		if("validatorSid".equals(validatorSid)){
+			DrSubjectInfo drSubjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(drProductInfo.getSid());
+			if(drProductInfo.getIsSid() == 1){
+				if(drProductInfo.getStatus() == 4){
+					drSubjectInfo.setSurplusAmount(drSubjectInfo.getSurplusAmount().multiply(new BigDecimal(10000)));
+					drSubjectInfo.setAmount(drSubjectInfo.getAmount().multiply(new BigDecimal(10000)));
+					drSubjectInfo.setSurplusAmount(Utils.nwdBcadd(drSubjectInfo.getSurplusAmount(), drProductInfo.getAmount()));
+					
+					Map<String,Object> map = new HashMap<String,Object>();
+					map.put("sid", drProductInfo.getSid());
+					map.put("status", 4);
+					List<DrProductInfo> list = drProductInfoDAO.getDrProductInfoListByMap(map);
+					if(4 != drSubjectInfo.getStatus()){
+						if(list.size() <= 1){
+							drSubjectInfo.setStatus(1);
+						}
+					}
+					drSubjectInfoDAO.updateDrSubjectInfo(drSubjectInfo);
+				}
+				if(drProductInfo.getStatus() == 5 && Utils.isObjectNotEmpty(drProductInfo.getStartDate())){
+					int counts = Utils.daysBetween(drProductInfo.getDeadline()+drProductInfo.getRaiseDeadline()-1,drSubjectInfo.getEndDate(),Utils.parse(drProductInfo.getStartDate(), "yyyy-MM-dd"));
+					if(counts>0){
+						br.setErrorMsg("产品到期日不可大于标的到期日【"+Utils.format(drSubjectInfo.getEndDate(), "yyyy-MM-dd")+"】！");
+						br.setSuccess(false);
+						return br;
+					}
+				}
+			}
+		}
+		
+		drProductInfoDAO.updateDrProductInfo(drProductInfo);
+		br.setMsg("操作成功!");
+		br.setSuccess(true);
+		return br;
+	}
+	
+	@Override
+	public BaseResult updateDrProductInfoForElse(DrProductInfo drProductInfo)throws Exception {
+		BaseResult br = new BaseResult();
+		
+		//相同标的名称 有相同名称的产品已存在(产品全称)
+		Map<String,Object> map = new HashMap<String, Object>();
+		map.put("fullName", drProductInfo.getFullName());
+		map.put("noId", drProductInfo.getId());
+		List<DrProductInfo> list = drProductInfoDAO.getDrProductInfoListByMap(map);
+		if (!Utils.isEmptyList(list)) {
+			br.setSuccess(false);
+			br.setErrorMsg("已有同名产品！请重新填写产品全称！");
+			return br;
+		}
+		drProductInfo.setImmediately(0);
+		drProductInfoDAO.updateDrProductInfo(drProductInfo);
+		
+		List<DrProductExtend> drProductExtendList = drProductInfo.getDrProductExtend();
+		drProductExtendDAO.deleteDrProductExtendByPid(drProductInfo.getId());
+		if(!Utils.isEmptyList(drProductExtendList)){
+			for(DrProductExtend drProductExtend : drProductExtendList){
+				if(!Utils.strIsNull(drProductExtend.getTitle())){
+					drProductExtend.setPid(drProductInfo.getId());
+					drProductExtend.setAddUser(drProductInfo.getAddUser());
+					drProductExtendDAO.insertDrProductExtend(drProductExtend);
+				}
+			}
+		}
+		br.setMsg("操作成功!");
+		br.setSuccess(true);
+		return br;
+	}
+
+	@Override
+	public void updateDrProductCancelBespoke(DrProductInfo drProductInfo)
+			throws Exception {
+		drProductInfoDAO.updateDrProductCancelBespoke(drProductInfo);
+	}
+	
+	@Override
+	public DrProductInfo getDrProductInfoByMap(Map<String, Object> map) {
+		return drProductInfoDAO.getDrProductInfoByMap(map);
+	}
+
+	/**
+	 * 生成优选回款信息
+	 * @throws SQLException 
+	 */
+	@Override
+	public Integer updateProductToEnd(DrProductInfo info, char[] ary2 , Integer nums) throws Exception {
+		List<DrProductInvestRepayInfo> insertRepayInfoList = new ArrayList<DrProductInvestRepayInfo>();//保存投资成功的记录的回款信息
+		List<DrProductInvest> successInvestList = new ArrayList<DrProductInvest>();//保存投资成功的记录
+		StringBuffer failId = new StringBuffer();//保存投资失败的记录ID
+		List<DrMemberMsg> msgList = new ArrayList<DrMemberMsg>();//需要发送的站内信
+		List<SysMessageLog> smsList = new ArrayList<SysMessageLog>();
+		Map<Integer, DrMemberFunds> fundsMap = new HashMap<Integer, DrMemberFunds>();//投资用户资金信息
+		List<DrMemberFundsLog> fundsLogsList = new ArrayList<DrMemberFundsLog>();//交易日志
+		List<DrMemberFundsRecord> fundsRecordList = new ArrayList<DrMemberFundsRecord>();//交易记录
+		Date now = new Date();
+		log.info("产品["+info.getFullName()+"]开始计息");
+		
+		List<DrProductInvest> investList = drProductInvestDAO.getDrProductInvestListByPid(info.getId());
+		BigDecimal totalAmount = BigDecimal.ZERO; //已投资金额
+		
+		for (int j = 0,length = investList.size(); j < length; j++) {
+			nums++;
+			DrProductInvest invest = investList.get(j);
+			DrMember member = drMemberDAO.selectByPrimaryKey(invest.getUid());
+			
+			//如果项目有人投资
+			if(totalAmount.compareTo(info.getAmount()) < 0 
+					|| info.getType() == 1 
+					|| info.getType()==4){//
+				totalAmount = totalAmount.add(invest.getAmount());
+				
+				if(totalAmount.compareTo(info.getAmount())>0 && info.getType() != 1){//投资总额大于产品金额，此笔投资只能部分成功
+					invest.setFactAmount(info.getAmount().subtract(totalAmount.subtract(invest.getAmount())));//实际投资金额 = 产品金额-(已投资总额-本次投资金额)
+					totalAmount = totalAmount.subtract(invest.getAmount()).add(invest.getAmount());
+				}else{
+					invest.setFactAmount(invest.getAmount());
+				}
+				BigDecimal repairRate = BigDecimal.ZERO;//补标利率
+				BigDecimal repairBalance = BigDecimal.ZERO;//补标返现金额
+				if(j == length-1 && info.getIsRepair()==1){//最后一笔投资是否触发补标
+					long hours = (info.getEstablish().getTime()-invest.getInvestTime().getTime())/1000/60/60;//投资时间与募集结束时间差
+					Map<String, Object> params = new HashMap<String, Object>();
+					params.put("deadline", info.getDeadline());
+					params.put("amount", invest.getAmount());
+					params.put("raiseDeadline", hours);
+					DrProductRepair repair = drProductRepairDAO.getDrProductRepairByParam(params);
+					if(Utils.isObjectNotEmpty(repair) && repair.getType() == 2){
+						repairRate = repair.getContent();
+						invest.setRepairContent("2_"+repairRate);
+					}else if(Utils.isObjectNotEmpty(repair) && repair.getType() == 1){
+						repairBalance  = repair.getContent();
+						invest.setRepairContent("1_"+repairBalance);
+					}
+					
+				}
+				//计算收益
+				JSONObject profitJson = this.getInvestProfit(info, invest, repairRate);
+				invest.setFactInterest(profitJson.getBigDecimal("interestProfit"));
+				invest.setStatus(1);
+				
+				DrProductInvestRepayInfo repayinfo = new DrProductInvestRepayInfo(invest.getUid(), invest.getId(), info.getId(),invest.getFactAmount(), BigDecimal.ZERO,
+						invest.getFactInterest(), BigDecimal.ZERO, BigDecimal.ZERO, 0,
+						Utils.getDayNumOfAppointDate(now, -info.getDeadline()));
+				
+				insertRepayInfoList.add(repayinfo);
+				//协议编号 通过当日计息次数生成计息编号
+				System.arraycopy((nums+"").toCharArray(), 0, ary2, ary2.length-(nums+"").toCharArray().length, (nums+"").toCharArray().length);
+				invest.setAgreementNo("QCGZ"+Utils.format(invest.getInvestTime(), "yyMMdd")+info.getType()+new String(ary2));
+				
+				successInvestList.add(invest);
+				
+				//用户资金
+				DrMemberFunds funds = null;
+				if(fundsMap.containsKey(invest.getUid())){
+					funds = fundsMap.get(invest.getUid());
+				}else{
+					funds = drMemberFundsDAO.queryDrMemberFundsByUid(invest.getUid());
+				}
+				DrMemberFundsRecord fundsRecord = drMemberFundsRecordDAO.selectByParam(invest.getId(), null,3);
+				//投资解冻
+				DrMemberFundsLog log = new DrMemberFundsLog(invest.getUid(), fundsRecord.getId(), invest.getAmount(), 4, 1,
+						"投资【"+info.getFullName()+"】产品计息，资金解冻");
+				funds.setBalance(funds.getBalance().add(invest.getAmount()));//解冻 可用余额增加
+				funds.setFreeze(funds.getFreeze().subtract(invest.getAmount()));//解冻  冻结金额减少
+				fundsLogsList.add(log);
+				//投资成功
+				DrMemberFundsLog log1 = new DrMemberFundsLog(invest.getUid(), fundsRecord.getId(), invest.getFactAmount(), 7, 0, "投资【"+info.getFullName()+"】产品成功");
+				funds.setBalance(funds.getBalance().subtract(invest.getFactAmount()));//可用余额
+				funds.setWprincipal(funds.getWprincipal().add(repayinfo.getShouldPrincipal()));//应收本金
+				funds.setWinterest(funds.getWinterest().add(repayinfo.getShouldInterest()));//应收利息
+				funds.setInvestAmount(funds.getInvestAmount().add(invest.getFactAmount()));//投资金额
+				fundsLogsList.add(log1);
+				
+				fundsRecord.setStatus(3);//投资成功
+				fundsRecord.setBalance(fundsRecord.getBalance().add(invest.getAmount().subtract(invest.getFactAmount())));
+				fundsRecord.setAmount(invest.getAmount());
+
+//				if(profitJson.getBigDecimal("balanceProfit").compareTo(BigDecimal.ZERO)>0 && info.getImmediately() == null){
+//					DrMemberFundsRecord record = new DrMemberFundsRecord(info.getId(), invest.getId(), invest.getUid(), 4, 1,
+//							profitJson.getBigDecimal("balanceProfit"),
+//							funds.getBalance().add(profitJson.getBigDecimal("balanceProfit")), 3, "投资产品【"+info.getFullName()+"】返现，投资金额："+invest.getFactAmount(), null);
+//					drMemberFundsRecordDAO.insert(record);
+//					DrMemberFundsLog logs = new DrMemberFundsLog(invest.getUid(), fundsRecord.getId(), profitJson.getBigDecimal("balanceProfit"),
+//							20, 1, "投资产品【"+info.getFullName()+"】返现，投资金额："+invest.getFactAmount());
+//					drMemberFundsLogDAO.insertDrMemberFundsLog(logs);
+//
+//					DrCompanyFundsLog cfundsLog = new DrCompanyFundsLog(11, invest.getUid(), info.getId(), profitJson.getBigDecimal("balanceProfit"),
+//							0, "投资产品【"+info.getFullName()+"】返现，投资金额："+invest.getFactAmount(), 0);
+//					drCompanyFundsLogDAO.insertDrCompanyFundsLog(cfundsLog);
+//					funds.setBalance(funds.getBalance().add(profitJson.getBigDecimal("balanceProfit")));
+//					funds.setInvestProfit(funds.getInvestProfit().add(profitJson.getBigDecimal("balanceProfit")));
+//				}
+				if(repairBalance.compareTo(BigDecimal.ZERO)>0){
+					DrMemberFundsRecord record = new DrMemberFundsRecord(info.getId(), invest.getId(), invest.getUid(), 4, 1,
+							repairBalance,funds.getBalance().add(repairBalance), 3,
+							"投资产品【"+info.getFullName()+"】返现(补标)", null);
+					drMemberFundsRecordDAO.insert(record);
+					
+					DrMemberFundsLog logs = new DrMemberFundsLog(invest.getUid(), fundsRecord.getId(), repairBalance,
+							20, 1, "投资产品【"+info.getFullName()+"】返现(补标)");
+					drMemberFundsLogDAO.insertDrMemberFundsLog(logs);
+					
+					DrCompanyFundsLog cfundsLog = new DrCompanyFundsLog(11, invest.getUid(), info.getId(), repairBalance,
+							0, "投资产品【"+info.getFullName()+"】返现(补标)", 0);
+					drCompanyFundsLogDAO.insertDrCompanyFundsLog(cfundsLog);
+					funds.setBalance(funds.getBalance().add(repairBalance));
+					funds.setInvestProfit(funds.getInvestProfit().add(repairBalance));
+				}
+				
+				fundsMap.put(funds.getUid(), funds);
+				fundsRecordList.add(fundsRecord);
+				DrMemberMsg msg = new DrMemberMsg(invest.getUid(), 0, 3, "计息成功", now, 0, 0,
+						PropertyUtil.getProperties("interestSuccessMsg")
+						.replace("${fullName}", info.getFullName())
+						.replace("${amount}", invest.getFactAmount().toString())
+						.replace("${interest}", invest.getFactInterest().toString())
+						.replace("${date}", Utils.getDayNumOfAppointDate(now, -info.getDeadline(), "yyyy年MM月dd日")));
+				msgList.add(msg);
+				SysMessageLog smslog = new SysMessageLog(invest.getUid(), PropertyUtil.getProperties("interestSuccessSms")
+						.replace("${realName}", member.getRealName())
+						.replace("${fullName}", info.getFullName())
+						.replace("${amount}", invest.getFactAmount().toString())
+						.replace("${interest}", invest.getFactInterest().toString())
+						.replace("${date}", Utils.getDayNumOfAppointDate(now, -info.getDeadline(), "yyyy年MM月dd日")),
+						17, Utils.parseDate(Utils.format(Utils.getMinuteNumOfAppointDate(now,5,"yyyy-MM-dd HH:mm:ss")),"yyyy-MM-dd HH:mm:ss"), member.getMobilephone());
+				smsList.add(smslog);
+				
+			}else{
+				//如果项目无人投资
+				invest.setFactAmount(BigDecimal.ZERO);
+				invest.setFactInterest(BigDecimal.ZERO);
+				invest.setStatus(2);
+				failId.append(invest.getId()+",");
+				//用户资金
+				DrMemberFunds funds = null;
+				if(fundsMap.containsKey(invest.getUid())){
+					funds = fundsMap.get(invest.getUid());
+				}else{
+					funds = drMemberFundsDAO.queryDrMemberFundsByUid(invest.getUid());
+				}
+				DrMemberFundsRecord fundsRecord = drMemberFundsRecordDAO.selectByParam(invest.getId(), null,3);
+				//投资解冻
+				DrMemberFundsLog log = new DrMemberFundsLog(invest.getUid(), fundsRecord.getId(), invest.getAmount(), 4, 1, "投资解冻");
+				funds.setBalance(funds.getBalance().add(invest.getAmount()));
+				funds.setFreeze(funds.getFreeze().subtract(invest.getAmount()));
+				fundsLogsList.add(log);
+				
+				fundsRecord.setStatus(2);//投资失败
+				fundsRecord.setBalance(fundsRecord.getBalance().add(invest.getAmount().subtract(invest.getFactAmount())));
+				fundsRecord.setAmount(invest.getAmount());
+				
+				fundsMap.put(funds.getUid(), funds);
+				fundsRecordList.add(fundsRecord);
+			}
+			
+		}
+		if(info.getType()!=1 && info.getType()!=4){
+			DrProductInfo p = new DrProductInfo();
+			p.setId(info.getId());
+			p.setImmediately(0);
+			p.setStatus(8);//待还款
+			//复审后，将产品的计息时间设为当前时间，并计算出产品还款日期
+			p.setEstablish(new Date());
+			p.setExpireDate(Utils.getDayNumOfDate(-(info.getDeadline())));
+			drProductInfoDAO.updateDrProductInfo(p);//把产品状态修改成还款中
+		}
+		if(Utils.isObjectNotEmpty(info.getSid())){//绑定标的的产品募集成功后修改债权状态
+			DrSubjectInfo drSubjectInfo = drSubjectInfoDAO.getDrSubjectInfoByid(info.getSid());//标的以及部分贷款项目信息
+			drClaimsLoanDAO.updateClaimsLoanStatusById(5, drSubjectInfo.getLid());//修改债权状态为待还款
+		}
+		if(totalAmount.compareTo(BigDecimal.ZERO)!=0){
+			DrCompanyFundsLog clog = new DrCompanyFundsLog(1, 0, info.getId(), totalAmount, 1, "产品【"+info.getFullName()+"】投资款",null);
+			drCompanyFundsLogDAO.insertDrCompanyFundsLog(clog);
+		}
+		if(nums>0){
+			drProductInvestRepayInfoDAO.batchInsert(insertRepayInfoList);
+			drProductInvestDAO.batchUpdate(successInvestList);
+			drMemberFundsRecordDAO.batchUpdateMemberFundsRecord(fundsRecordList);
+			drMemberFundsDAO.batchUpdateDrMemberFunds((new ArrayList<DrMemberFunds>(fundsMap.values())));
+			drMemberFundsLogDAO.batchInsert(fundsLogsList);
+			drMemberMsgDAO.batchInsert(msgList);
+		}
+		if(StringUtils.isNotBlank(failId.toString())){
+			String[] ids = failId.toString().split(",");
+			drProductInvestDAO.updateStatusByIds("2", ids);
+		}
+		//短信发送
+		for (int i = 0, length = smsList.size(); i < length; i++) {
+			sysMessageLogService.sendMsg(smsList.get(i));
+		}
+		return nums;
+	}
+	
+	/**
+	 * 计算投资金额以及优惠券可获得收益
+	 * @param info 产品
+	 * @param invest 投资记录
+	 * @param repairRate 补标利率
+	 * @return balanceProfit 返还到账户余额的收益，interestProfit 利息收益
+	 * @throws SQLException
+	 */
+	public JSONObject getInvestProfit(DrProductInfo info, DrProductInvest invest,BigDecimal repairRate)throws Exception{
+		JSONObject obj = new JSONObject();
+		Integer deadline;
+		BigDecimal balanceProfit = BigDecimal.ZERO;//返现金额
+		BigDecimal interestProfit = BigDecimal.ZERO;//应得总利息
+		//判断用户投资时间和满标时间是否是同一天
+		if(Utils.areSameDay(invest.getInvestTime(),new Date())){
+			deadline = info.getDeadline();//同一天，按产品期限算
+		}else{
+			deadline = info.getDeadline()+Integer.parseInt(Long.toString(
+					Utils.getQuot(Utils.format(new Date(), "yyyy-MM-dd"), Utils.format(invest.getInvestTime(), "yyyy-MM-dd"))))-1;
+		}
+		//产品上架时间和2018-04-13的大小比较 
+		int num = Utils.compare_date1(Utils.getparseDate(info.getStartDate(),"yyyy-MM-dd"),"2018-04-13");
+		int daynums = (num == 1)?365:360;
+		if(invest.getFid() != null){//使用优惠券
+			DrMemberFavourable dmf = drMemberFavourableDAO.selectByPrimaryKey(invest.getFid());
+			if(dmf.getType() == 1){//红包 
+					BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate()).add(repairRate),100), daynums);//日息
+					balanceProfit = dmf.getAmount();
+					interestProfit = invest.getFactAmount().multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+					dmf.setProfitAmount(dmf.getAmount());
+			}else if(dmf.getType() == 2){//加息券
+					BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate())
+							.add(dmf.getRaisedRates()).add(repairRate),100), daynums);//日息（包含加息券）
+					BigDecimal dayRate1 =  Utils.nwdDivide(Utils.nwdDivide(dmf.getRaisedRates(),100), daynums);//加息券日息
+					interestProfit = invest.getFactAmount()
+							.multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+					
+					dmf.setProfitAmount(invest.getFactAmount()
+							.multiply(dayRate1).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR));
+			}else if(dmf.getType() == 3){//体验金
+					BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate()).add(repairRate),100), daynums);//日息
+					interestProfit = dmf.getAmount().add(invest.getFactAmount())
+							.multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+					dmf.setProfitAmount(dmf.getAmount()
+							.multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR));				
+			}else if(dmf.getType() ==4){//翻倍券
+					BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().multiply(dmf.getMultiple())
+							.add(info.getActivityRate()).add(repairRate),100), daynums);//日息（包含翻倍金）
+					BigDecimal dayRate1 = Utils.nwdDivide(Utils.nwdDivide(info.getRate()
+							.add(info.getActivityRate()).add(repairRate),100), daynums);//日息(不包含翻倍金)
+					interestProfit =invest.getFactAmount()
+							.multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+					dmf.setProfitAmount(interestProfit.subtract(invest.getFactAmount().multiply(dayRate1).multiply(new BigDecimal(deadline))
+							.setScale(2, BigDecimal.ROUND_FLOOR)));
+			}
+			dmf.setStatus(1);
+			drMemberFavourableDAO.updateByPrimaryKey(dmf);
+		}else{
+				BigDecimal dayRate = Utils.nwdDivide(Utils.nwdDivide(info.getRate().add(info.getActivityRate()).add(repairRate),100), daynums);//日息
+				interestProfit = invest.getFactAmount().multiply(dayRate).multiply(new BigDecimal(deadline)).setScale(2, BigDecimal.ROUND_FLOOR);
+		}
+		obj.put("balanceProfit", balanceProfit);
+		obj.put("interestProfit", interestProfit);
+		return obj;
+	}
+	
+	@Override
+	public List<DrProductPic> getDrProductPicByPid(Integer pid){
+		return drProductPicDAO.getDrProductPicByPid(pid);
+	}
+
+	@Override
+	public void deleteDrProductPicById(Integer id) throws SQLException {
+		drProductPicDAO.deleteDrProductPicById(id);
+	}
+
+	@Override
+	public BaseResult getInvestmentPoolList(DrProductInfo drProductInfo,
+			PageInfo pi) {
+		Map<String,PageInfo> resultMap = new HashMap<String,PageInfo>();
+		Map<String,Object> map = new HashMap<String, Object>();
+		map.put("offset",pi.getPageInfo().getOffset()); 
+		map.put("limit",pi.getPageInfo().getLimit()); 
+		map.put("code", drProductInfo.getCode());
+		map.put("simpleName",drProductInfo.getSimpleName());
+		map.put("type", 2);
+		map.put("status", new Integer[]{6,8,9});//募集完成，还款中，还款完成
+		map.put("searchStartDate", drProductInfo.getSearchStartDate());
+		map.put("searchEndDate", drProductInfo.getSearchEndDate());
+		List<DrProductInfo> list = drProductInfoDAO.getNeedMatchingProductList(map);
+		Integer total = drProductInfoDAO.getDrProductInfoCounts(map);
+		pi.setRows(list);
+		pi.setTotal(total);
+		resultMap.put("page", pi);
+		BaseResult br = new BaseResult();
+		br.setMap(resultMap);
+		return br;
+	}
+
+	@Override
+	public List<DrProductExtend> getDrProductExtendByPid(int pid) {
+		return drProductExtendDAO.getDrProductExtendByPid(pid);
+	}
+
+	@Override
+	public List<DrProductInfo> selectRaiseSuccesProductInfo() {
+		return drProductInfoDAO.selectRaiseSuccesProductInfo();
+	}
+
+	@Override
+	public List<Map<String,Object>> selectDrProductInfoList(Map<String, Object> map) {
+		return drProductInfoDAO.selectDrProductInfoList(map);
+
+	}
+
+	@Override
+	public BaseResult selectReturnMoneyEstimate(
+			DrProductInvestRepayInfo start,DrProductInvestRepayInfo end, PageInfo pi) {
+		Map<String,PageInfo> resultMap = new HashMap<String,PageInfo>();
+		Map<String,Object> map = new HashMap<String, Object>();
+		map.put("statuses",new Integer[]{5,6,8}); 
+		map.put("types",new Integer[]{3,2}); 
+		map.put("offset",pi.getPageInfo().getOffset()); 
+		map.put("limit",pi.getPageInfo().getLimit());
+		map.put("startTime", start.getStartTime());
+		map.put("endTime", end.getEndTime());
+		List<DrProductInvestRepayInfo> list=drProductInfoDAO.selectReturnMoneyEstimate(map);
+		Integer total=drProductInfoDAO.selectCountReturnMoneyEstimate(map);
+		pi.setRows(list);
+		pi.setTotal(total);
+		resultMap.put("page", pi);
+		BaseResult br =new BaseResult();
+		br.setMap(resultMap);
+		return br;
+	}
+	
+	@Override
+	public DrProductInvestRepayInfo estimate(DrProductInvestRepayInfo drProductInvestRepayInfo){
+		Map<String,Object> map = new HashMap<String, Object>();
+		map.put("statuses",new Integer[]{5,6,8}); 
+		map.put("types",new Integer[]{3,2}); 
+		map.put("raiseDays",drProductInvestRepayInfo.getRaiseDays()); 
+		map.put("productDays",drProductInvestRepayInfo.getProductDays());
+		map.put("sumReturnMoney", drProductInvestRepayInfo.getSumReturnMoney());
+		map.put("fid", drProductInvestRepayInfo.getFid());
+		map.put("sumTime", drProductInvestRepayInfo.getSumTime());
+		drProductInvestRepayInfo=drProductInfoDAO.estimate(map);
+		return drProductInvestRepayInfo;
+	}
+
+	@Override
+	public List<DrProductInfo> getRaiseDueProducts(Integer day) {
+		return drProductInfoDAO.getRaiseDueProducts(day);
+	}
+
+	@Override
+	public Integer getAutoAdded(Integer deadline) {
+		return drProductInfoDAO.getAutoAdded(deadline);
+	}
+
+	@Override
+	public BaseResult getProductForStatistics(Map<String, Object> map, PageInfo pi) {
+		Map<String,PageInfo> resultMap = new HashMap<String,PageInfo>();
+		
+		List<Map<String,Object>>  list = drProductInfoDAO.getProductForStatistics(map);
+		Integer total = drProductInfoDAO.getProductForStatisticsCount(map);
+		pi.setTotal(total);
+		pi.setRows(list);
+		
+		Map<String,Object> m = drProductInfoDAO.getProductForStatisticsFooterTotal(map);
+		List<Map<String,Object>> footer = drProductInfoDAO.getProductForStatisticsFooterPage(map);
+		footer.add(m);
+		pi.setFooter(footer);
+		
+		resultMap.put("page", pi);
+		BaseResult br = new BaseResult();
+		br.setMap(resultMap);
+		return br;
+	}
+
+	@Override
+	public List<DrProductInfo> getDrProductInfoPayment() {
+		// TODO Auto-generated method stub
+		return drProductInfoDAO.selectNowdayExpireProductInfo();
+	}
+
+}
