@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+	<typeAliases>
+	<!-- 给实体Bean一个别名-->
+		<typeAlias type="com.szcrm.entity.DrMemberFollow" alias="DrMemberFollow" />
+		<typeAlias type="com.szcrm.entity.DrMember" alias="DrMember" />
+		<typeAlias type="com.szcrm.entity.User" alias="User" />
+		<typeAlias type="com.szcrm.entity.UserLoginList" alias="UserLoginList" />
+		<typeAlias type="com.szcrm.entity.Resources" alias="Resources"/>
+		<typeAlias type="com.szcrm.entity.Roles" alias="Roles"/>
+		<typeAlias type="com.szcrm.entity.ResourceRoles" alias="ResourceRoles"/>
+		<typeAlias type="com.szcrm.entity.UserRoles" alias="UserRoles"/>
+		<typeAlias type="com.szcrm.entity.ServerInfo" alias="ServerInfo"/>
+		
+		<typeAlias type="com.szcrm.entity.Log" alias="Log"/>
+	</typeAliases>
+</configuration>

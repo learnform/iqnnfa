@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="DrProductInvest">
+
+	<select id="selectLastAddTime" resultType="java.util.Date">
+		select MAX(addTime) from dr_product_invest
+	</select>
+
+	<insert id="batchInsert" parameterType="java.util.List">
+		insert into dr_product_invest (uid, pid,amount,investTime, status, factAmount, interest, factInterest,fid,method,joinType,agreementNo)
+		values
+		<foreach collection="list" item="invest" index="index" separator="," >
+			(#{invest.uid,jdbcType=INTEGER},
+			#{invest.pid,jdbcType=INTEGER},
+			#{invest.amount,jdbcType=DECIMAL},
+			#{invest.investTime,jdbcType=TIMESTAMP},
+			#{invest.status,jdbcType=INTEGER},
+			#{invest.factAmount,jdbcType=DECIMAL},
+			#{invest.interest,jdbcType=DECIMAL},
+			#{invest.factInterest,jdbcType=DECIMAL},
+			#{invest.fid,jdbcType=INTEGER},
+			#{invest.method,jdbcType=INTEGER},
+			#{invest.joinType,jdbcType=INTEGER},
+			#{invest.agreementNo,jdbcType=VARCHAR})
+		</foreach>
+	</insert>
+
+</mapper>

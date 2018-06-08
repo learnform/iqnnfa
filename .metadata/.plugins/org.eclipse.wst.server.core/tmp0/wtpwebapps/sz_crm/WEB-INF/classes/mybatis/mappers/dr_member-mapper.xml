@@ -1,0 +1,587 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="DrMember">
+	<sql id="selectId">
+		id,
+		uid,
+		userName,
+		mobilePhone,
+		referrerName,
+		referrerPhone,
+		registertime,
+		bankName,
+		channelName,
+		balance,
+		freeze,
+		wprincipal,
+		totalAmount,
+		investAmount,
+		(case regfrom when 0 then 'pc' when 1 then 'IOS' when 2 then 'android' when 3 then '微信' ELSE 'WAP' END) regfromTo,
+		assign,
+		sysLeader,
+		sysUser,
+		addTime,
+		updateTime
+	</sql>
+	
+	<!-- 电销主管列表查询 -->
+	<select id="selectDrMember" parameterType="map" resultType="com.szcrm.entity.DrMember">
+		select dr.uid,dr.userName,u.userName as name,
+		dr.mobilePhone ,
+		dr.referrerPhone,
+		dr.followCount,dr.regfrom,
+		dr.referrerName,dr.registertime,dr.bankName,
+		follow.addTime as lastFollowTime,u.userRealName as sysUserTo
+		from dr_member dr left join user u on dr.sysUser = u.userId
+		LEFT JOIN dr_member_follow follow on dr.uid=follow.uid
+		<trim  prefix=" where " prefixOverrides="and">
+			<if test="mobilePhone != null and mobilePhone != ''">
+				and dr.mobilephone like
+				CONCAT(CONCAT('%',#{mobilePhone:VARCHAR}),'%')
+			</if>
+			<if test="userName != null and userName != '' ">
+				and instr(dr.userName,#{userName:VARCHAR})>0
+			</if>
+			<if test="startDate != null and startDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ >= ]]>DATE_FORMAT(#{startDate},'%Y-%m-%d')
+			</if>
+			<if test="endDate != null and endDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ <= ]]>DATE_FORMAT(#{endDate},'%Y-%m-%d')
+			</if>
+			<if test="advanceDate != null and advanceDate != ''">
+				and dr.uid in (select uid from dr_member_follow where DATE_FORMAT(advanceDate,'%Y-%m-%d') =DATE_FORMAT(#{advanceDate},'%Y-%m-%d') GROUP BY uid)
+			</if>
+			<if test="referrerName != null and referrerName != ''">
+				and dr.referrerName like CONCAT(CONCAT('%',#{referrerName:VARCHAR}),'%')
+			</if>
+			<if test="referrerPhone != null and referrerPhone != ''">
+				and dr.referrerPhone like CONCAT(CONCAT('%',#{referrerPhone:VARCHAR}),'%')
+			</if>
+			<if test="sysUser != null and sysUser != ''">
+				and dr.sysUser in (select userId from `user` where userRealname like CONCAT(CONCAT('%',#{sysUser}),'%'))
+			</if>
+			<if test="sysLeader != null and sysLeader != ''">
+				and dr.sysLeader =#{sysLeader}
+			</if>
+			<if test="isAllot != null and isAllot != ''">
+				<if test="isAllot == 1">
+					and dr.uid in (select uid from dr_member where sysUser<![CDATA[ <> ]]>0)
+				</if>
+				<if test="isAllot == 0">
+					and dr.uid in (select uid from dr_member where sysUser=0)
+				</if>
+			</if>
+			<if test="isInvest != null and isInvest != ''">
+				<if test="isInvest == 1">
+					and dr.uid in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>	
+				<if test="isInvest != 1">
+					and dr.uid not in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>
+			</if>
+			<if test="isFollow != null and isFollow != ''">
+				<if test="isFollow == 1">
+				and dr.uid in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+				<if test="isFollow == 2">
+				and dr.uid not in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+			</if>	
+			<if test="status != null and status != ''">
+				and follow.uid IN (
+					select c.uid from (
+					SELECT
+						a.uid,
+						a.status
+					FROM
+						dr_member_follow a
+					right JOIN (
+						SELECT
+							uid,
+							max(addTime) AS 'maxgdtime'
+						FROM
+							dr_member_follow
+						GROUP BY
+							uid
+					) b on a.uid = b.uid and a.addTime=b.maxgdtime) c where c.status = #{status}
+				)
+			</if>		
+		</trim>
+		GROUP BY dr.uid
+		<if test="sort!=null and sort != ''">
+			<if test="order=='asc'">ORDER BY dr.followCount asc</if>
+			<if test="order=='desc'">ORDER BY dr.followCount desc</if>
+		</if>
+		<if test="sort==null and sort == ''">
+			order by dr.registertime desc
+		</if>
+		<if test="offset != null and limit != null">
+			limit #{offset},#{limit}
+		</if>
+
+	</select>
+
+	<select id="selectDrMemberCounts" parameterType="map" resultType="java.lang.Integer">
+		select count(DISTINCT dr.uid) 
+		from dr_member dr left join user u on dr.sysUser = u.userId
+		LEFT JOIN dr_member_follow follow on dr.uid=follow.uid
+		<trim  prefix=" where " prefixOverrides="and">
+			<if test="mobilePhone != null and mobilePhone != ''">
+				and dr.mobilephone like
+				CONCAT(CONCAT('%',#{mobilePhone:VARCHAR}),'%')
+			</if>
+			<if test="userName != null and userName != '' ">
+				and instr(dr.userName,#{userName:VARCHAR})>0
+			</if>
+			<if test="startDate != null and startDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ >= ]]>DATE_FORMAT(#{startDate},'%Y-%m-%d')
+			</if>
+			<if test="endDate != null and endDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ <= ]]>DATE_FORMAT(#{endDate},'%Y-%m-%d')
+			</if>
+			<if test="advanceDate != null and advanceDate != ''">
+				and dr.uid in (select uid from dr_member_follow where DATE_FORMAT(advanceDate,'%Y-%m-%d') =DATE_FORMAT(#{advanceDate},'%Y-%m-%d') GROUP BY uid)
+			</if>
+			<if test="referrerName != null and referrerName != ''">
+				and dr.referrerName like CONCAT(CONCAT('%',#{referrerName:VARCHAR}),'%')
+			</if>
+			<if test="referrerPhone != null and referrerPhone != ''">
+				and dr.referrerPhone like CONCAT(CONCAT('%',#{referrerPhone:VARCHAR}),'%')
+			</if>
+			<if test="sysUser != null and sysUser != ''">
+				and dr.sysUser in (select userId from `user` where userRealname like CONCAT(CONCAT('%',#{sysUser}),'%'))
+			</if>
+			<if test="sysLeader != null and sysLeader != ''">
+				and dr.sysLeader =#{sysLeader}
+			</if>
+			<if test="isAllot != null and isAllot != ''">
+				<if test="isAllot == 1">
+					and dr.uid in (select uid from dr_member where sysUser<![CDATA[ <> ]]>0)
+				</if>
+				<if test="isAllot == 0">
+					and dr.uid in (select uid from dr_member where sysUser=0)
+				</if>
+			</if>
+			<if test="isInvest != null and isInvest != ''">
+				<if test="isInvest == 1">
+					and dr.uid in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>	
+				<if test="isInvest != 1">
+					and dr.uid not in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>
+			</if>
+			<if test="isFollow != null and isFollow != ''">
+				<if test="isFollow == 1">
+				and dr.uid in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+				<if test="isFollow == 2">
+				and dr.uid not in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+			</if>	
+			<if test="status != null and status != ''">
+				and follow.uid IN (
+					select c.uid from (
+					SELECT
+						a.uid,
+						a.status
+					FROM
+						dr_member_follow a
+					right JOIN (
+						SELECT
+							uid,
+							max(addTime) AS 'maxgdtime'
+						FROM
+							dr_member_follow
+						GROUP BY
+							uid
+					) b on a.uid = b.uid and a.addTime=b.maxgdtime) c where c.status = #{status}
+				)
+			</if>
+		</trim>
+	</select>
+
+	<!-- 电销专员列表 -->
+	<select id="selectDrMemberForStaff" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+		select dr.mobilePhone as mobile,
+		dr.uid,dr.userName,dr.regfrom,dr.followCount,follow.addTime as lastFollowTime,
+		dr.mobilePhone,
+		dr.referrerPhone,
+		dr.referrerName,dr.registertime,dr.bankName,
+		IFNULL(dr.balance,0) balance, IFNULL(dr.freeze,0) freeze,IFNULL(dr.wprincipal,0) wprincipal,IFNULL(dr.investAmount,0) investAmount,
+		(case t.status when 1 then '待联系' when 2 then '持续跟进' when 3 then '高意向' when 4 then '成功' when 0 then '未接听' else '失败' end)  lastFollowState
+		from dr_member dr
+		LEFT JOIN dr_member_follow follow on dr.uid=follow.uid
+		LEFT JOIN (SELECT dmf.*FROM dr_member_follow dmf LEFT JOIN (SELECT max(addTime) "addTime",uid FROM dr_member_follow
+					GROUP BY uid) t ON dmf.uid=t.uid AND dmf.addTime=t.addTime
+			) t on t.uid = dr.uid
+
+		<trim  prefix=" where " prefixOverrides="and">
+			<if test="mobilePhone != null and mobilePhone != ''">
+				and dr.mobilephone like
+				CONCAT(CONCAT('%',#{mobilePhone:VARCHAR}),'%')
+			</if>
+			<if test="userName != null and userName != '' ">
+				and instr(dr.userName,#{userName:VARCHAR})>0
+			</if>
+			<if test="startDate != null and startDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ >= ]]>DATE_FORMAT(#{startDate},'%Y-%m-%d')
+			</if>
+			<if test="endDate != null and endDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ <= ]]>DATE_FORMAT(#{endDate},'%Y-%m-%d')
+			</if>
+			<if test="advanceDate != null and advanceDate != ''">
+				and uid in (select uid from dr_member_follow where DATE_FORMAT(advanceDate,'%Y-%m-%d') =DATE_FORMAT(#{advanceDate},'%Y-%m-%d') GROUP BY uid)
+			</if>
+			<if test="referrerName != null and referrerName != ''">
+				and dr.referrerName like CONCAT(CONCAT('%',#{referrerName:VARCHAR}),'%')
+			</if>
+			<if test="referrerPhone != null and referrerPhone != ''">
+				and dr.referrerPhone like CONCAT(CONCAT('%',#{referrerPhone:VARCHAR}),'%')
+			</if>
+			<if test="minInvestAmount != null and minInvestAmount != ''">
+				and dr.investAmount <![CDATA[ >= ]]> #{minInvestAmount}
+			</if>
+			<if test="maxInvestAmount != null and maxInvestAmount != ''">
+				and dr.investAmount <![CDATA[ <= ]]> #{maxInvestAmount}
+			</if>
+			<if test="sysUser != null and sysUser != ''">
+				and dr.sysUser = #{sysUser}
+			</if>
+			<if test="isInvest != null and isInvest != ''">
+				<if test="isInvest == 1">
+					and dr.uid in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>	
+				<if test="isInvest != 1">
+					and dr.uid not in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>
+			</if>
+			<if test="isFollow != null and isFollow != ''">
+				<if test="isFollow == 1">
+				and dr.uid in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+				<if test="isFollow == 2">
+				and dr.uid not in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+			</if>	
+			<if test="status != null and status != ''">
+				and follow.uid IN (
+					select c.uid from (
+					SELECT
+						a.uid,
+						a.status
+					FROM
+						dr_member_follow a
+					right JOIN (
+						SELECT
+							uid,
+							max(addTime) AS 'maxgdtime'
+						FROM
+							dr_member_follow
+						GROUP BY
+							uid
+					) b on a.uid = b.uid and a.addTime=b.maxgdtime) c where c.status = #{status}
+				)
+			</if>
+		</trim>
+		GROUP BY dr.uid
+		<if test="sort!=null and sort != ''">
+			<if test="sort=='balance'">
+				<if test="order=='asc'">ORDER BY dr.balance asc</if>
+				<if test="order=='desc'">ORDER BY dr.balance desc</if>
+			</if>
+			<if test="sort=='freeze'">
+				<if test="order=='asc'">ORDER BY dr.freeze asc</if>
+				<if test="order=='desc'">ORDER BY dr.freeze desc</if>
+			</if>
+			<if test="sort=='wprincipal'">
+				<if test="order=='asc'">ORDER BY dr.wprincipal asc</if>
+				<if test="order=='desc'">ORDER BY dr.wprincipal desc</if>
+			</if>
+			<if test="sort=='totalAmount'">
+				<if test="order=='asc'">ORDER BY dr.totalAmount asc</if>
+				<if test="order=='desc'">ORDER BY dr.totalAmount desc</if>
+			</if>
+			<if test="sort=='investAmount'">
+				<if test="order=='asc'">ORDER BY dr.investAmount asc</if>
+				<if test="order=='desc'">ORDER BY dr.investAmount desc</if>
+			</if>
+		</if>
+		<if test="sort==null or sort == ''">
+		 order by dr.registertime desc
+		</if>
+		<if test="offset != null and limit != null">
+			limit #{offset},#{limit}
+		</if>
+	</select>
+
+	<select id="selectDrMemberCountsForStaff" parameterType="map" resultType="java.lang.Integer">
+		select count(DISTINCT dr.uid) from dr_member dr
+		LEFT JOIN (select MAX(addtime) as addtime,uid,id,MAX(status) as status from dr_member_follow GROUP BY uid) follow on dr.uid = follow.uid
+		<trim  prefix=" where " prefixOverrides="and">
+			<if test="mobilePhone != null and mobilePhone != ''">
+				and dr.mobilephone like
+				CONCAT(CONCAT('%',#{mobilePhone:VARCHAR}),'%')
+			</if>
+			<if test="userName != null and userName != '' ">
+				and instr(dr.userName,#{userName:VARCHAR})>0
+			</if>
+			<if test="startDate != null and startDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ >= ]]>DATE_FORMAT(#{startDate},'%Y-%m-%d')
+			</if>
+			<if test="endDate != null and endDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ <= ]]>DATE_FORMAT(#{endDate},'%Y-%m-%d')
+			</if>
+			<if test="advanceDate != null and advanceDate != ''">
+				and uid in (select uid from dr_member_follow where DATE_FORMAT(advanceDate,'%Y-%m-%d') =DATE_FORMAT(#{advanceDate},'%Y-%m-%d') GROUP BY uid)
+			</if>
+			<if test="referrerName != null and referrerName != ''">
+				and dr.referrerName like CONCAT(CONCAT('%',#{referrerName:VARCHAR}),'%')
+			</if>
+			<if test="referrerPhone != null and referrerPhone != ''">
+				and dr.referrerPhone like CONCAT(CONCAT('%',#{referrerPhone:VARCHAR}),'%')
+			</if>
+			<if test="minInvestAmount != null and minInvestAmount != ''">
+				and dr.investAmount <![CDATA[ >= ]]> #{minInvestAmount}
+			</if>
+			<if test="maxInvestAmount != null and maxInvestAmount != ''">
+				and dr.investAmount <![CDATA[ <= ]]> #{maxInvestAmount}
+			</if>
+			<if test="sysUser != null and sysUser != ''">
+				and dr.sysUser = #{sysUser}
+			</if>
+			<if test="isInvest != null and isInvest != ''">
+				<if test="isInvest == 1">
+					and dr.uid in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>	
+				<if test="isInvest != 1">
+					and dr.uid not in (SELECT uid from dr_product_invest GROUP BY uid)
+				</if>
+			</if>
+			<if test="isFollow != null and isFollow != ''">
+				<if test="isFollow == 1">
+				and dr.uid in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+				<if test="isFollow == 2">
+				and dr.uid not in (select uid from dr_member_follow GROUP BY id  HAVING  COUNT(id) >0)
+				</if>
+			</if>	
+			<if test="status != null and status != ''">
+				and follow.uid IN (
+					select c.uid from (
+					SELECT
+						a.uid,
+						a.status
+					FROM
+						dr_member_follow a
+					right JOIN (
+						SELECT
+							uid,
+							max(addTime) AS 'maxgdtime'
+						FROM
+							dr_member_follow
+						GROUP BY
+							uid
+					) b on a.uid = b.uid and a.addTime=b.maxgdtime) c where c.status = #{status}
+				)
+			</if>
+		</trim>
+	</select>
+
+	<!-- 分配客户 -->
+	<update id="allotCustomer" parameterType="map">
+		update dr_member set sysUser = #{sysUser}
+		where 1=1 and uid in
+		<foreach collection="uids" item="item" open="(" close=")" separator=",">
+			${item}
+		</foreach>
+	</update>
+
+	<select id="selectLastRegistTime" resultType="java.util.Date">
+		select MAX(registertime) from dr_member
+	</select>
+
+	<insert id="batchInsert" parameterType="java.util.List">
+		insert into dr_member
+		(
+		uid,
+		userName,
+		mobilePhone,
+		referrerName,
+		referrerPhone,
+		registertime,
+		bankName,
+		channelName,
+		balance,
+		freeze,
+		wprincipal,
+		investAmount,
+		regfrom,
+		updateTime,
+		sysLeader
+		)
+		values
+		<foreach collection="list" item="member" separator="," >
+
+			(
+				#{member.uid},
+				#{member.userName},
+				#{member.mobilePhone},
+				#{member.referrerName},
+				#{member.referrerPhone},
+				#{member.registertime},
+				#{member.bankName},
+				#{member.channelName},
+				#{member.balance},
+				#{member.freeze},
+				#{member.wprincipal},
+				#{member.investAmount},
+				#{member.regfrom},
+				#{member.updateTime},
+				#{member.sysLeader}
+			)
+		</foreach>
+	</insert>
+
+	<select id="selectLastUpdateTime" resultType="java.util.Date">
+		select MAX(updateTime) from dr_member
+	</select>
+
+	<update id="batchUpdate" parameterType="java.util.List">
+		update dr_member set
+		userName =
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.userName}
+		</foreach>
+		,referrerName=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.referrerName}
+		</foreach>
+		,referrerPhone=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.referrerPhone}
+		</foreach>
+		,bankName=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.bankName}
+		</foreach>
+		,channelName=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.channelName}
+		</foreach>
+		,balance=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.balance}
+		</foreach>
+		,freeze=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.freeze}
+		</foreach>
+		,wprincipal=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.wprincipal}
+		</foreach>
+		,investAmount=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.investAmount}
+		</foreach>
+		,updateTime=
+		<foreach collection="list" item="item" index="index" separator=" " open="case uid" close="end">
+			when #{item.uid,jdbcType=INTEGER} then #{item.updateTime}
+		</foreach>
+		where uid in
+		<foreach collection="list" index="index" item="item" separator="," open="(" close=")">
+			#{item.uid,jdbcType=INTEGER}
+		</foreach>
+	</update>
+
+	<!-- 转接客户 -->
+	<update id="transferCoutomer" parameterType="map">
+		update dr_member set sysUser=#{userId}
+		where sysUser = #{sysUser} and sysLeader=#{sysLeader}
+	</update>
+
+	<!-- 电销概览 -->
+	<select id="selectOverviewList" resultType="java.util.Map" parameterType="map">
+		select
+		temp1.userName,temp1.userRealname,temp1.leaderUid,temp1.userId,
+		if(temp1.allotCount is null,0,temp1.allotCount) as allotCount,
+		if(temp1.investAmount is null,0,temp1.investAmount) as investAmount,
+		if(temp2.followCount is null,0,temp2.followCount) as followCount,
+		if(temp3.followInvestAmount is null,0,temp3.followInvestAmount) as followInvestAmount,
+		if(temp4.followInvestCount is null,0,temp4.followInvestCount) as followInvestCount,
+		if(temp5.notInvestCount  is null,0,temp5.notInvestCount) as notInvestCount
+		from
+		(SELECT t2.userId,t2.userName,t2.userRealname, COALESCE(COUNT(t1.uid),0) as allotCount,SUM(t1.investAmount)+SUM(t1.freeze) as investAmount,t1.sysUser,t2.leaderUid  from  dr_member t1 LEFT JOIN user t2 on t1.sysUser = t2.userId where t1.sysUser <![CDATA[ <> ]]> 0 GROUP BY t1.sysUser) as temp1
+		LEFT JOIN
+		(SELECT COALESCE(COUNT(Distinct t1.uid),0) as followCount,t1.sysUser from dr_member_follow t1 LEFT JOIN user t2 on t1.sysUser = t2.userid where t1.`status` <![CDATA[ <> ]]> 1 GROUP BY t1.sysUser) as temp2 on temp1.sysUser = temp2.sysUser
+		LEFT JOIN
+		(SELECT COALESCE(SUM(amount),0) AS followInvestAmount,t2.sysUser from dr_product_invest t1 LEFT JOIN (select uid,sysUser,MIN(addTime) as addTime from  dr_member_follow GROUP by uid ) t2 on t1.uid = t2.uid where t1.investTime <![CDATA[ >= ]]>t2.addTime  GROUP by t2.sysUser) as temp3 on temp1.sysUser = temp3.sysUser
+		LEFT JOIN
+		(SELECT COALESCE(COUNT(DISTINCT(t1.uid)),0) AS followInvestCount,t2.sysUser from dr_product_invest t1 LEFT JOIN (select uid,sysUser,MIN(addTime) as addTime from  dr_member_follow GROUP by uid ) t2 on t1.uid = t2.uid where t1.investTime <![CDATA[ >= ]]>t2.addTime  GROUP by t2.sysUser) as temp4 on temp1.sysUser = temp4.sysuser
+		LEFT JOIN
+		(select COALESCE(COUNT(t1.uid),0) as notInvestCount,t1.sysUser from user t2 LEFT JOIN  dr_member t1 on t2.userId = t1.sysUser where t1.uid not in (SELECT uid from dr_product_invest GROUP BY uid) group by t2.userId) as temp5 on temp1.sysUser = temp5.sysuser
+		<trim  prefix=" where " prefixOverrides="and">
+			<if test="leaderId!=null and leaderId !=''">
+				and temp1.leaderUid=${leaderId}
+			</if>
+		</trim>
+	</select>
+	
+	<!-- 用户导出 -->
+	<select id="exportMember" parameterType="map" resultType="com.szcrm.entity.DrMember">
+		select temp.* from
+		(SELECT dr.id,dr.uid,dr.userName,concat(substring(dr.mobilePhone,1,3),"***",substring(dr.mobilePhone,8)) mobilePhone ,
+		concat(substring(dr.referrerPhone,1,3),"***",substring(dr.referrerPhone,8)) referrerPhone ,dr.mobilePhone as mobile,
+		dr.referrerName,dr.registertime,dr.bankName,dr.channelName,dr.sysUser,u.userRealName as sysUserTo,
+		(case dr.regfrom when 0 then 'pc' when 1 then 'IOS' when 2 then 'android' when 3 then '微信' ELSE 'WAP' END) regfromTo,
+		case when (select count(id) from dr_product_invest i where i.uid = dr.uid)>0 then 1 else 0 end isInvest,
+		(case u.userName  when ISNULL(u.userName) then 1 else 0 end) as isAllot,
+		max(follow.addTime) as lastFollowTime,case count(follow.id) when 0 then 2 else 1 end as isFollow,dr.followCount
+		from dr_member dr left join user u on dr.sysUser = u.userId
+		LEFT JOIN dr_member_follow follow on dr.uid = follow.uid
+		<trim  prefix=" where " prefixOverrides="and">
+			<if test="mobilePhone != null and mobilePhone != ''">
+				and dr.mobilephone like
+				CONCAT(CONCAT('%',#{mobilePhone:VARCHAR}),'%')
+			</if>
+			<if test="userName != null and userName != '' ">
+				and instr(dr.userName,#{userName:VARCHAR})>0
+			</if>
+			<if test="startDate != null and startDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ >= ]]>DATE_FORMAT(#{startDate},'%Y-%m-%d')
+			</if>
+			<if test="endDate != null and endDate != ''">
+				and DATE_FORMAT(dr.registertime,'%Y-%m-%d') <![CDATA[ <= ]]>DATE_FORMAT(#{endDate},'%Y-%m-%d')
+			</if>
+			<if test="advanceDate != null and advanceDate != ''">
+				and DATE_FORMAT(follow.advanceDate,'%Y-%m-%d') =DATE_FORMAT(#{advanceDate},'%Y-%m-%d')
+			</if>
+			<if test="referrerName != null and referrerName != ''">
+				and dr.referrerName like CONCAT(CONCAT('%',#{referrerName:VARCHAR}),'%')
+			</if>
+			<if test="referrerPhone != null and referrerPhone != ''">
+				and dr.referrerPhone like CONCAT(CONCAT('%',#{referrerPhone:VARCHAR}),'%')
+			</if>
+			<if test="sysUser != null and sysUser != ''">
+				and u.userRealName like CONCAT(CONCAT('%',#{sysUser:VARCHAR}),'%')
+			</if>
+			<if test="sysLeader != null and sysLeader != ''">
+				and dr.sysLeader like CONCAT(CONCAT('%',#{sysLeader:VARCHAR}),'%')
+			</if>
+		</trim>
+		GROUP BY dr.uid
+		) temp
+		<trim  prefix=" where " prefixOverrides="and">
+			<if test="isAllot != null and isAllot != ''">
+				and temp.isAllot = #{isAllot}
+			</if>
+			<if test="isInvest != null and isInvest != ''">
+				and temp.isInvest = #{isInvest}
+			</if>
+			<if test="isFollow != null and isFollow != ''">
+				and temp.isFollow = #{isFollow}
+			</if>
+		</trim>
+	</select>
+	
+</mapper>

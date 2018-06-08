@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="DrMemberFollow">
+	<sql id="selectId">
+		id,
+		uid,
+		note,
+		status,
+		sysLeader,
+		sysUser,
+		addTime
+	</sql>
+	<!-- 跟进记录列表 -->
+	<select id="selectDrMemberFollow" parameterType="Map" resultType="com.szcrm.entity.DrMemberFollow">
+		select 
+		follow.id,follow.uid,follow.note,(case follow.status when 1 then '待联系' when 2 then '持续跟进' when 3 then '高意向' when 4 then '成功' when 0 then '未接听' else '失败' end) statusTo,
+		follow.sysLeader,follow.sysUser,follow.addTime, u.userRealname,follow.advanceDate
+		from dr_member_follow follow left join user u on follow.sysUser=u.userId
+		<where>
+			<if test="uid!=null and uid!=''">
+				follow.uid = #{uid}
+			</if>
+		</where>
+		<if test="offset != null and limit != null">
+			limit #{offset},#{limit}
+		</if>
+	</select>
+	
+	<select id="selectDrMemberFollowCount" parameterType="Map" resultType="Integer">
+		select 
+		count(1)
+		from dr_member_follow
+		<where>
+			<if test="uid!=null and uid!=''">
+				uid = #{uid}
+			</if>
+		</where>
+		<if test="offset != null and limit != null">
+			limit #{offset},#{limit}
+		</if>
+	</select>
+	
+	<!-- 新增跟进信息 -->
+	<insert id="insertFollow" parameterType="com.szcrm.entity.DrMemberFollow" useGeneratedKeys="true" keyProperty="id">
+		insert into dr_member_follow (uid,note,status,sysLeader,sysUser,addTime,advanceDate) values
+		(#{uid},
+		#{note},
+		#{status},
+		#{sysLeader},
+		#{sysUser},
+		#{addTime},
+		#{advanceDate});
+	</insert>
+	
+	<update id="addFollowCount" parameterType="com.szcrm.entity.DrMemberFollow">
+		update dr_member set followCount = followCount+1 where uid = #{uid}; 
+	</update>
+	
+</mapper>

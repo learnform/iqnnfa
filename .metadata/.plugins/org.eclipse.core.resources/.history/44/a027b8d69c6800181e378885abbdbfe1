@@ -1,0 +1,13 @@
+package iqnnfacloudC1;
+
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class iqnnfacloudC1Controller {
+	@Autowired
+    HelloService helloService;
+    @RequestMapping(value = "/hi")
+    public String hi(@RequestParam String name){
+        return helloService.hiService(name);
+    }
+}

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Copy element &apos;DrMember.java&apos; to &apos;iqnnfacloudC1/src/main/java/iqnnfacloudC1&apos;&#x0D;&#x0A;- Original project: &apos;iqnnfatest&apos;&#x0D;&#x0A;- Destination element: &apos;iqnnfacloudC1/src/main/java/iqnnfacloudC1&apos;&#x0D;&#x0A;- Original element: &apos;cn.iqnnfa.model.DrMember.java&apos;" description="Copy compilation unit" destination="=iqnnfacloudC1/src\/main\/java&lt;iqnnfacloudC1" element1="/src\/main\/java&lt;cn.iqnnfa.model{DrMember.java" files="0" flags="589830" folders="0" id="org.eclipse.jdt.ui.copy" policy="org.eclipse.jdt.ui.copyResources" stamp="1528353568555" units="1" version="1.0"/>
+</session>

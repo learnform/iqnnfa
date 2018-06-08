@@ -6,7 +6,7 @@ eureka:
       defaultZone: http://localhost:8762/eureka/
 spring:
   application:
-    name: service-gg
+    name: service-gg1
 spring.rabbitmq: 
    host: 192.168.56.102 
    port: 5672  

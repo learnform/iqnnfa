@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="serverinfo">
+	<!-- 以下与实体类的中字段一致 -->
+	<sql id="selectId">
+		id,
+		cpuUsage,
+		setCpuUsage,
+		jvmUsage,
+		setJvmUsage,
+		ramUsage,
+		setRamUsage,
+		operTime,
+		email,
+		mark
+	</sql>
+	<!-- 查询 -->
+	<select id="query" resultType="serverinfo" parameterType="java.util.HashMap">
+		select
+		<include refid="selectId" />
+		from serverinfo  
+		<where>
+		<if test="t.email != null and t.email != ''">
+			email like '%${t.email}%'
+		</if>
+		</where>
+		order By operTime desc
+	</select>
+	
+	<!-- 查询 -->
+	<select id="queryAll" resultType="serverinfo" parameterType="serverinfo">
+		select
+		<include refid="selectId" />
+		from serverinfo  order By operTime desc
+	</select>
+
+	<!-- 总记录数 -->
+	<select id="count" parameterType="serverinfo" resultType="int">
+		select count(*) from serverinfo
+		<where>
+		<if test="email != null and email != ''">
+			email like '%${email}%'
+		</if>
+		</where>
+	</select>
+	
+	<!-- 新增 -->
+	<insert id="add" parameterType="serverinfo">
+		insert into serverinfo(
+		cpuUsage,
+		setCpuUsage,
+		jvmUsage,
+		setJvmUsage,
+		ramUsage,
+		setRamUsage,
+		operTime,
+		email,mark
+		) 
+		values(
+		#{cpuUsage},
+		#{setCpuUsage},
+		#{jvmUsage},
+		#{setJvmUsage},
+		#{ramUsage},
+		#{setJvmUsage},
+		#{operTime},
+		#{email},#{mark})
+	</insert>
+	
+	<!-- 删 -->
+	<delete id="deleteById" parameterType="String">
+		delete from serverinfo
+		where id=#{id}
+	</delete>
+	
+	<select id="getById" parameterType="String" resultType="serverinfo">
+		select * from serverinfo where id= #{id}
+	</select>
+	
+</mapper>

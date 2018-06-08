@@ -1,0 +1,22 @@
+package iqnnfacloud;
+
+import rx.Observable;
+import rx.Subscriber;
+
+public class ObservableTest {
+
+	public static void main(String[] args) {
+		Observable<String> observable = Observable.create(new Observable.OnSubscribe<String>() {
+
+			@Override
+			public void call(Subscriber<? super String> subscriber) {
+				subscriber.onNext("—————发布订阅————");	
+				subscriber.onNext("琴声绕梁三百回");
+				subscriber.onCompleted();
+			}
+			
+		});
+
+	}
+
+}

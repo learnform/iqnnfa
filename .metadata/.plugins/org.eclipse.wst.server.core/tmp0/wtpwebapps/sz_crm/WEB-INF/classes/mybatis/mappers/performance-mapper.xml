@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://www.mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="performance">
+
+	<select id="selectInvestAmount" resultType="java.util.Map" parameterType="java.util.Map">
+		select DISTINCT t1.uid,t1.userName,COALESCE(t2.samount,0 )as samount,COALESCE(t3.lamount,0)as lamount,t4.agNum from dr_member t1
+		LEFT JOIN (
+		SELECT SUM(amount) as samount,uid from dr_product_invest where
+		investTime  <![CDATA[>=]]> DATE_FORMAT(#{startDate},'%y%m%d')
+		AND
+		investTime  <![CDATA[<=]]> DATE_FORMAT(#{endDate},'%y%m%d')
+		and uid in(
+		SELECT DISTINCT
+		t1.uid
+		FROM
+		dr_product_invest t1
+		LEFT JOIN (
+		select t1.startTime,t2.uid,t3.investTime from performance_time t1
+		LEFT JOIN dr_member t2 on t1.mobilephone = t2.mobilephone
+		LEFT JOIN (select MIN(investTime) as investTime,uid  from dr_product_invest GROUP BY uid) t3 on t2.uid = t3.uid
+		) temp ON t1.uid = temp.uid
+		WHERE
+		temp.investTime  <![CDATA[>=]]> temp.startTime
+		) GROUP BY uid) as t2 on t1.uid =t2.uid
+		LEFT JOIN (
+		SELECT SUM(dpi.amount) as lamount,dpi.uid from dr_product_invest dpi
+		LEFT JOIN (select t1.startTime,t2.uid from performance_time t1 LEFT JOIN dr_member t2 on t1.mobilephone = t2.mobilephone) as pt on dpi.uid=pt.uid where
+		dpi.investTime  <![CDATA[>=]]> DATE_FORMAT(#{startDate},'%y%m%d')
+		AND
+		dpi.investTime  <![CDATA[<=]]> DATE_FORMAT(#{endDate},'%y%m%d')
+		and dpi.investTime  <![CDATA[>=]]>pt.startTime
+		and
+		dpi.uid in(
+		SELECT DISTINCT
+		t1.uid
+		FROM
+		dr_product_invest t1
+		LEFT JOIN (
+		select t1.startTime,t2.uid,t3.investTime from performance_time t1
+		LEFT JOIN dr_member t2 on t1.mobilephone = t2.mobilephone
+		LEFT JOIN (select MIN(investTime) as investTime,uid  from dr_product_invest GROUP BY uid) t3 on t2.uid = t3.uid
+		) temp ON t1.uid = temp.uid
+		WHERE
+		temp.investTime  <![CDATA[<=]]> temp.startTime
+		) GROUP BY uid) as t3 on t1.uid = t3.uid
+
+		LEFT JOIN user t4 on t1.sysUser = t4.userId
+		where
+			samount >0
+		or
+			lamount>0
+		order by t4.agNum asc
+	</select>
+
+	<select id="selectProductInfo" resultType="java.util.Map" parameterType="java.util.Map">
+		select t1.uid,t2.fullName,t1.amount,t2.deadline,t1.investTime from dr_product_invest t1 LEFT JOIN dr_product_info t2 on t1.pid = t2.id
+		LEFT JOIN (select uid,MIN(addTime) as addTime from dr_member_follow GROUP BY uid) as t3 on t1.uid=t3.uid
+		where
+		t1.investTime <![CDATA[>=]]>DATE_FORMAT(#{startDate},'%y%m%d')
+		AND
+		t1.investTime <![CDATA[<]]> DATE_FORMAT(#{endDate},'%y%m%d')
+		and
+		t1.investTime >= t3.addTime
+		and
+		t2.id is not null
+		order by t1.uid asc
+	</select>
+
+	<insert id="insertIGNORE" parameterType="java.util.List">
+		insert IGNORE into performance_time(sysuser,mobilephone,startTime) VALUES
+		<foreach collection="list" item="PerformanceTime" separator="," >
+			(
+			#{PerformanceTime.sysUser},
+			#{PerformanceTime.mobilePhone},
+			#{PerformanceTime.startTime}
+			)
+		</foreach>
+	</insert>
+
+</mapper>

@@ -6,20 +6,20 @@
 	</section>
 	<section name="org.eclipse.ui.texteditor.FindReplaceDialog">
 		<item value="false" key="isRegEx"/>
-		<item value="unfreezeMoneyWithdrawSuccess" key="selection"/>
+		<item value="postForEntity" key="selection"/>
 		<item value="false" key="casesensitive"/>
 		<item value="false" key="incremental"/>
 		<item value="true" key="wrap"/>
 		<item value="false" key="wholeword"/>
 		<list key="findhistory">
+			<item value="postforentity"/>
+			<item value="getforentity"/>
 			<item value="unfreezeMoneyWithdrawSuccess"/>
 			<item value="saveFuiouPayment"/>
 			<item value="tomcat"/>
 			<item value="redis"/>
 			<item value="cache"/>
 			<item value=" "/>
-			<item value="expireDate"/>
-			<item value="/invest"/>
 		</list>
 		<list key="replacehistory">
 			<item value=" "/>

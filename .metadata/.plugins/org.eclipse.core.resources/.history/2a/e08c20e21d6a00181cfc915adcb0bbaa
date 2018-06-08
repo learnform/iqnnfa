@@ -1,0 +1,5 @@
+package iqnnfacloudC1;
+
+public class DrMemberCommand extends HystrixCommand<DrMember>{
+
+}

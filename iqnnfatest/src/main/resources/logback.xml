@@ -4,7 +4,7 @@
     <appender name="consoleLogger" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <pattern>
-                %d - %msg%n
+                %d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
             </pattern>
         </layout>
     </appender>
@@ -48,7 +48,7 @@
     </appender>
 
     <!--引用哪个配置-->
-    <root level="info,debug">
+    <root level="info">
         <appender-ref ref="consoleLogger"/>
         <appender-ref ref="fileInfoLog"/>
         <appender-ref ref="fileErrorLog"/>

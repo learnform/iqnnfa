@@ -1,0 +1,10 @@
+package iqnnfacloudC1;
+
+import org.springframework.cloud.netflix.zuul.ZuulFilterInitializer;
+
+import com.netflix.zuul.ZuulFilter;
+
+
+public class MyFilter extends ZuulFilter{
+
+}

@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="user">
+	<!-- 以下与实体类的中字段一致 -->
+	<sql id="selectId">
+		userId,
+		userName,
+		(select r.name from role r where id in (SELECT ur.role_id FROM user_role ur
+		WHERE ur.user_id=userId)) roleName,
+		userPassword,
+		userNickname,
+		userRealname,
+		userAge,
+		userSex,
+		userAddress,
+		userPhone,
+		userMail,
+		userQQ,
+		regTime,
+		(select ul.loginTime from userloginlist ul where ul.userId=userId order By ul.loginTime desc limit 1,1) lastLogintime,
+		level,
+		province,
+		city,
+		bankName,
+		branchBank,
+		subbranchBank,
+		openBankName,
+		bankAccountName,
+		bankAccount,
+		accountType,
+		pay,
+		mark,
+		status,
+		parentNumber,
+		agentPhone,
+		agNum,
+		leaderUid
+	</sql>
+	<!--resultType="User" 每返回一条结果封装到User里 -->
+	<select id="query" resultType="User" parameterType="java.util.HashMap">
+		select
+		<include refid="selectId" />
+		from user
+		<where>
+			<if test="t.userName != null and t.userName != ''">
+				userName like '%${t.userName}%'
+				</if>
+			<if test="t.userNickname != null and t.userNickname != ''">
+				and userNickname like '%${t.userNickname}%'
+				</if>
+		</where>
+	</select>
+	<!-- 总记录数 -->
+	<select id="count" parameterType="User" resultType="int">
+		select count(0) from user
+		<where>
+			<if test="userName != null and userName != ''">
+				userName like '%${userName}%'
+				</if>
+			<if test="userNickname != null and userNickname != ''">
+				and userNickname like '%${userNickname}%'
+				</if>
+		</where>
+	</select>
+	
+	<select id="selectUser" parameterType="map" resultType="User">
+		select <include refid="selectId" />
+		from user
+	</select>
+	
+	<!-- 增加用户 -->
+	<insert id="add" parameterType="com.szcrm.entity.User" useGeneratedKeys="true" keyProperty="userId">
+		insert into user( userName,
+		userPassword,
+		userNickname, userRealname,
+		userAge, userSex, userAddress,
+		userPhone,
+		userMail, userQQ, level,
+		province,
+		city,
+		bankName,
+		branchBank,
+		subbranchBank,
+		openBankName,
+		bankAccountName,
+		bankAccount,
+		accountType,
+		pay,
+		mark,
+		status,
+		parentNumber ,
+		agentPhone,
+		agNum,
+		leaderUid)
+		values (#{userName},
+		#{userPassword},
+		#{userNickname}, #{userRealname},
+		#{userAge},
+		#{userSex},
+		#{userAddress}, #{userPhone}, #{userMail},
+		#{userQQ},
+		#{level},
+		#{province},
+		#{city},
+		#{bankName}, #{branchBank},
+		#{subbranchBank},
+		#{openBankName},
+		#{bankAccountName}, #{bankAccount}, #{accountType},
+		#{pay},
+		#{mark},#{status},
+		#{parentNumber},
+		#{agentPhone},
+		#{agNum},
+		#{leaderUid})
+	</insert>
+
+	<delete id="deleteById" parameterType="String">
+		delete from user where
+		userId=#{userId}
+	</delete>
+	<select id="getById" parameterType="String" resultType="User">
+		select
+		u.*,r.role_id as roleId
+		from user u left join user_role r on u.userId = r.user_id where u.userId=#{userId}
+	</select>
+	<update id="updateUser" parameterType="User">
+		update user
+		<set>
+			<if test="userName != null and userName != ''">
+				userName=#{userName},
+			</if>
+			<if test="userPassword != null and userPassword != ''">
+				userPassword=#{userPassword},
+			</if>
+			<if test="userNickname != null and userNickname != ''">
+				userNickname=#{userNickname},
+			</if>
+			<if test="userRealname != null and userRealname != ''">
+				userRealname=#{userRealname},
+			</if>
+			<if test="userAge != null and userAge != ''">
+				userAge=#{userAge},
+			</if>
+			<if test="userSex != null and userSex != ''">
+				userSex=#{userSex},
+			</if>
+			<if test="userAddress != null and userAddress != ''">
+				userAddress=#{userAddress},
+			</if>
+			<if test="userPhone != null and userPhone != ''">
+				userPhone=#{userPhone},
+			</if>
+			<if test="userMail != null and userMail != ''">
+				userMail=#{userMail},
+			</if>
+			<if test="userQQ != null and userQQ != ''">
+				userQQ=#{userQQ},
+			</if>
+			<if test="level != null and level != ''">
+				level=#{level},
+			</if>
+			<if test="agentPhone != null and level != ''">
+				agentPhone=#{agentPhone},
+			</if>
+			<if test="agNum != null and level != ''">
+				agNum=#{agNum},
+			</if>
+			<if test="leaderUid != null and level != ''">
+				leaderUid=#{leaderUid},
+			</if>
+			province=#{province},
+		city=#{city},
+		bankName=#{bankName},
+		branchBank=#{branchBank},
+		subbranchBank=#{subbranchBank},
+		openBankName=#{openBankName},
+		bankAccountName=#{bankAccountName}, 
+		bankAccount=#{bankAccount},
+		accountType=#{accountType},
+		pay=#{pay},
+		mark=#{mark},
+		status=#{status},
+		parentNumber =#{parentNumber}
+		</set>
+		where userId=#{userId}
+	</update>
+	
+	<!-- 验证用户登陆 -->
+	<select id="countUser" parameterType="User" resultType="int">
+	    select count(*) from user where 
+	    userName=#{userName} and userPassword=#{userPassword}
+	</select>
+	
+	<!-- 根据用户名查出userId -->
+<!-- 	<select id="queryUserName" parameterType="String" resultType="User"> -->
+<!-- 	  select -->
+<!-- 	  <include refid="selectId"/> -->
+<!-- 	  from user where userName=#{userName} -->
+<!-- 	</select> -->
+	<select id="queryUserName" parameterType="String" resultType="User">
+		  select
+		  u.userId,u.userName,u.agentPhone,u.agNum,u.leaderUid,role.roleKey,u.userPassword
+		  from user u  
+		  left join user_role urole on u.userId = urole.user_id
+		  left join role role on urole.role_id=role.id
+		  where userName=#{userName}
+	</select>
+	
+	<!-- 根据用户ID查出用户信息 -->
+	<select id="queryUserNameById" parameterType="int" resultType="User">
+	  select
+	  <include refid="selectId"/>
+	  from user where userId=#{userId}
+	</select>
+	
+	<!-- 查询这个用户下的电销专员 -->
+	<select id="getUserByLeader" parameterType="Map" resultType="User">
+		select 
+		<include refid="selectId"/>
+		from user 
+		where leaderUid = #{userId}
+		<if test="offset != null and limit != null">
+			limit #{offset},#{limit}
+		</if>
+	</select>
+	<select id="getUserByLeaderCount" parameterType="Map" resultType="Integer">
+		select 
+		count(1)
+		from user 
+		where leaderUid = #{userId}
+		<if test="offset != null and limit != null">
+			limit #{offset},#{limit}
+		</if>
+	</select>
+	
+	<!-- 获取员工集合 -->
+	<select id="employeeList" parameterType="map" resultType="map">
+		select 
+		userId,userName,userRealname
+		from user 
+		where leaderUid = #{leaderUid}
+	</select>
+
+	<resultMap id="sysLeaderMap" type="int">
+		<result column="sysLeader" property="sysLeader" jdbcType="INTEGER" />
+	</resultMap>
+	<select id="selectUserLeaderIdInvest" resultMap="sysLeaderMap">
+-- 		SELECT
+-- 			COUNT(DISTINCT t2.uid) as num,
+-- 			t2.sysLeader
+-- 		FROM
+-- 			dr_product_invest t1
+-- 		LEFT JOIN dr_member t2 ON t1.uid = t2.uid
+-- 		WHERE
+-- 			sysLeader != 0
+-- 		GROUP BY
+-- 			t2.sysLeader
+-- 		ORDER BY num desc
+
+	SELECT DISTINCT
+		u.userId as "sysLeader"
+	FROM
+		`user` AS u
+		LEFT JOIN user_role AS ur ON u.userId = ur.user_id
+		LEFT JOIN role AS r ON r.id = ur.role_id
+		LEFT JOIN (
+	SELECT
+		u.userId AS "userId",
+		COUNT( 1 ) AS "count"
+	FROM
+		dr_member AS dm
+		LEFT JOIN `user` AS u ON dm.sysLeader = u.userId
+	WHERE
+		u.userId IS NOT NULL
+	GROUP BY
+		u.userId
+		) t ON t.userId = u.userId
+	WHERE
+		r.roleKey = 'manager'
+	ORDER BY
+		t.count ASC
+
+	</select>
+
+	<select id="selectUserLeaderIdUninvest" resultMap="sysLeaderMap">
+-- 		SELECT
+-- 			COUNT(DISTINCT uid) AS num,
+-- 			sysLeader
+-- 		FROM
+-- 			dr_member t1
+-- 		WHERE
+-- 			sysLeader != 0
+-- 		and
+-- 			t1.uid NOT IN (
+-- 				SELECT DISTINCT
+-- 					uid
+-- 				FROM
+-- 					dr_product_invest
+-- 			)
+-- 		GROUP BY
+-- 			sysLeader
+-- 		ORDER BY num desc
+
+	SELECT DISTINCT
+		u.userId as "sysLeader"
+	FROM
+		`user` AS u
+		LEFT JOIN user_role AS ur ON u.userId = ur.user_id
+		LEFT JOIN role AS r ON r.id = ur.role_id
+		LEFT JOIN (
+	SELECT
+		u.userId AS "userId",
+		COUNT( 1 ) AS "count"
+	FROM
+		dr_member AS dm
+		LEFT JOIN `user` AS u ON dm.sysLeader = u.userId
+	WHERE
+		u.userId IS NOT NULL
+	GROUP BY
+		u.userId
+		) t ON t.userId = u.userId
+	WHERE
+		r.roleKey = 'manager'
+	ORDER BY
+		t.count ASC
+
+	</select>
+	
+</mapper>

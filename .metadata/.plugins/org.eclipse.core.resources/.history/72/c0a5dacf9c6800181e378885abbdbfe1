@@ -1,0 +1,10 @@
+package iqnnfacloudC1;
+
+public class iqnnfacloudC1Controller {
+	@Autowired
+    HelloService helloService;
+    @RequestMapping(value = "/hi")
+    public String hi(@RequestParam String name){
+        return helloService.hiService(name);
+    }
+}
