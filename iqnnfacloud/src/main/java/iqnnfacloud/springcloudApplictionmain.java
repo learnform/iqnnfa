@@ -14,6 +14,7 @@ public class springcloudApplictionmain {
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		int i = 1;
+		int i = 0;
 		SpringApplication.run(springcloudApplictionmain.class);
 	}
 	
