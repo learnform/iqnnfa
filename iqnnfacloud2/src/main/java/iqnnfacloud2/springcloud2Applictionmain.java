@@ -17,6 +17,7 @@ public class springcloud2Applictionmain {
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		SpringApplication.run(springcloud2Applictionmain.class);
+        System.out.println("ssss");
 	}
 	
     @Value("${server.port}")
