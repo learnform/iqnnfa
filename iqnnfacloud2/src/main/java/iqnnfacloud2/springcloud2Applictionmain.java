@@ -19,6 +19,7 @@ public class springcloud2Applictionmain {
 		SpringApplication.run(springcloud2Applictionmain.class);
         System.out.println("ssss");
         System.out.println("改了代码");
+        System.out.println("我不知道A修改了代码，直接提交");
 	}
 	
     @Value("${server.port}")
